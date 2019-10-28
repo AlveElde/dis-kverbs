@@ -22,7 +22,7 @@ int dis_poll_cq(struct ibv_cq *ibvcq, int nwc, struct ibv_wc *wc);              
 //int dis_resize_cq();                                                                                      // Not in efa
 int dis_destroy_cq(struct ibv_cq *ibvcq);                                                                   // Used by nccl, srq_pp
 
-// Send Receive Queue verbs.
+// Shared Receive Queue verbs.
 //truct ibv_srq *dis_create_srq();    // Used by srq_pp, Not in efa
 //int dis_modify_srq();               // Not in efa
 //int dis_query_srq();                // Not in bnxt_re, cxgb3, efa
