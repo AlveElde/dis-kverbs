@@ -1,18 +1,14 @@
-CC := gcc
-CFLAGS := -c -fPIC -Wall -g
-LDFLAGS := -shared
-RM= rm -f
+obj-m += dis_kverbs.o
+dis_kverbs-objs := src/dis_main.o
 
-
-LIBRARY := libdis-rdmav22.so
-SOURCES := $(wildcard src/*.c)
-HEADERS := $(wildcard src/*.h)
-OBJECTS = $(SOURCES:.c=.o)
-
-all: $(LIBRARY)
-
-$(LIBRARY): $(OBJECTS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $(LIBRARY) $(OBJECTS)
+all:
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 clean:
-	${RM} ${LIBRARY} ${OBJECTS} $(SOURCES:.c=.d)
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+
+test:
+	sudo dmesg -C
+	sudo insmod dis_kverbs.ko
+	sudo rmmod dis_kverbs.ko
+	dmesg
