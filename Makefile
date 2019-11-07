@@ -1,11 +1,16 @@
+SRC := ./src
+
 obj-m += dis_kverbs.o
-dis_kverbs-objs := src/dis_main.o
+dis_kverbs-objs := $(SRC)/dis_main.o $(SRC)/dis_verbs.o
 
 all:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+	make -C /lib/modules/`uname -r`/build M=$(PWD) modules
+
+install:
+	make -C /lib/modules/`uname -r`/build M=$(PWD) modules_install
 
 clean:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	make -C /lib/modules/`uname -r`/build M=$(PWD) clean
 
 test:
 	sudo dmesg -C

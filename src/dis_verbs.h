@@ -1,45 +1,53 @@
-#include <infiniband/driver.h>
-#include <infiniband/verbs.h>
+#ifndef __DIS_VERBS_H__
+#define __DIS_VERBS_H__
+
+#include <rdma/ib_verbs.h>
 
 // Device verbs.
-int dis_query_device(struct ibv_context *uctx, struct ibv_device_attr *attr);           // Used by nccl, srq_pp
-int dis_query_port(struct ibv_context *uctx, uint8_t port, struct ibv_port_attr *attr); // Used by nccl, srq_pp
+int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
+                     struct ib_udata *udata);
+int dis_query_port(struct ib_device *ibdev, u8 port,
+                   struct ib_port_attr *props);
 
 // Protection Domain verbs.
-struct ibv_pd *dis_alloc_pd(struct ibv_context *uctx);  // Used by nccl, srq_pp
-int dis_dealloc_pd(struct ibv_pd *ibvpd);               // Used by nccl, srq_pp
-//int dis_free_pd();
+int dis_alloc_pd(struct ib_pd *ibpd, struct ib_udata *udata);
+void dis_dealloc_pd(struct ib_pd *ibpd, struct ib_udata *udata);
 
 // Memory Region verbs.
-struct ibv_mr *dis_reg_mr(struct ibv_pd *ibvpd, void *buf, size_t len, uint64_t hca_va, int ibv_access_flags);  // Used by nccl, srq_pp
-int dis_dereg_mr(struct verbs_mr *vmr);                                                                         // Used by nccl, srq_pp
+// struct ib_mr *dis_reg_mr(struct ib_pd *ibpd, u64 start, u64 length,
+//                          u64 virt_addr, int access_flags,
+//                          struct ib_udata *udata);
+int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata);
 
 // Completion Queue verbs.
-struct ibv_cq *dis_create_cq(struct ibv_context *uctx, int ncqe, struct ibv_comp_channel *ch, int vec);     // Used by nccl, srq_pp
-int dis_poll_cq(struct ibv_cq *ibvcq, int nwc, struct ibv_wc *wc);                                          // Used by nccl, srq_pp
-//int dis_notify_cq();                                                                                      // Used by srq_pp, not in efa
-//int dis_cq_event();                                                                                       // Not in HFIverbs, efa
-//int dis_resize_cq();                                                                                      // Not in efa
-int dis_destroy_cq(struct ibv_cq *ibvcq);                                                                   // Used by nccl, srq_pp
-
-// Shared Receive Queue verbs.
-//truct ibv_srq *dis_create_srq();    // Used by srq_pp, Not in efa
-//int dis_modify_srq();               // Not in efa
-//int dis_query_srq();                // Not in bnxt_re, cxgb3, efa
-//int dis_resize_srq();               // Not in bnxt_re, efa
-//int dis_destroy_srq();              // Used by srq_pp, Not in bnxt_re, efa
-//int dis_post_srq_recv();            // Used by srq_pp, Not in efa
+int dis_create_cq(struct ib_cq *ibcq,
+                            const struct ib_cq_init_attr *attr,
+                            struct ib_udata *udata);
+int dis_poll_cq(struct ib_cq *ibcq, int nwc, struct ib_wc *wc);
+void dis_destroy_cq(struct ib_cq *ibcq, struct ib_udata *udata);
 
 // Queue pair verbs.
-struct ibv_qp *dis_create_qp(struct ibv_pd *ibvpd, struct ibv_qp_init_attr *attr);                                      // Used by nccl, srq_pp
-int dis_query_qp(struct ibv_qp *ibvqp, struct ibv_qp_attr *attr, int attr_mask, struct ibv_qp_init_attr *init_attr);    // Used by nccl, srq_pp
-int dis_modify_qp(struct ibv_qp *ibvqp, struct ibv_qp_attr *attr, int ibv_qp_attr_mask);                                // Used by nccl, srq_pp
-int dis_destroy_qp(struct ibv_qp *ibvqp);                                                                               // Used by nccl, srq_pp
+struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
+                            struct ib_qp_init_attr *init_attr,
+                            struct ib_udata *udata);
+int dis_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *qp_attr,
+                 int qp_attr_mask,
+                 struct ib_qp_init_attr *qp_init_attr);
+int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *qp_attr,
+                  int qp_attr_mask, struct ib_udata *udata);
+int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata);
 
 // Posting verbs.
-int dis_post_send(struct ibv_qp *ibvqp, struct ibv_send_wr *wr, struct ibv_send_wr **bad);  // Used by nccl, srq_pp
-int dis_post_recv(struct ibv_qp *ibvqp, struct ibv_recv_wr *wr, struct ibv_recv_wr **bad);  // Used by nccl, srq_pp
+int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
+                  const struct ib_send_wr **bad_wr);
+int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
+                  const struct ib_recv_wr **bad_wr);
 
 // Address Handle verbs.
-struct ibv_ah *dis_create_ah(struct ibv_pd *ibvpd, struct ibv_ah_attr *attr);   // Used by ud_pp
-int dis_destroy_ah(struct ibv_ah *ibvah);                                       // Used by ud_pp
+int dis_create_ah(struct ib_ah *ibah,
+                            struct rdma_ah_attr *ah_attr,
+                            u32 flags,
+                            struct ib_udata *udata);
+void dis_destroy_ah(struct ib_ah *ibah, u32 flags);
+
+#endif /* __DIS_VERBS_H__ */
