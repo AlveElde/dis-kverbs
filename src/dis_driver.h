@@ -1,5 +1,5 @@
-#ifndef __DIS_MAIN_H__
-#define __DIS_MAIN_H__
+#ifndef __DIS_DRIVER_H__
+#define __DIS_DRIVER_H__
 
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_mad.h>
@@ -10,4 +10,4 @@ struct dis_device {
 };
 
 
-#endif /* __DIS_MAIN_H__ */
+#endif /* __DIS_DRIVER_H__ */

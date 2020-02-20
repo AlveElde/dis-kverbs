@@ -2,7 +2,7 @@ obj-m += dis_bus.o dis_driver.o dis_device.o
 
 SRC := ./src
 dis_bus-objs := $(SRC)/dis_bus.o
-dis_driver-objs := $(SRC)/dis_main.o $(SRC)/dis_verbs.o
+dis_driver-objs := $(SRC)/dis_driver.o $(SRC)/dis_verbs.o
 dis_device-objs := $(SRC)/dis_device.o
 
 all:

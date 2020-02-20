@@ -1,7 +1,7 @@
 #ifndef __DIS_VERBS_H__
 #define __DIS_VERBS_H__
 
-#include "dis_main.h"
+#include "dis_driver.h"
 
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_mad.h>

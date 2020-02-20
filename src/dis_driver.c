@@ -4,7 +4,7 @@
 #include <linux/types.h>
 #include <linux/device.h>
 
-#include "dis_main.h"
+#include "dis_driver.h"
 #include "dis_verbs.h"
 
 #define MINOR_BASE  0
@@ -44,8 +44,8 @@ static const struct ib_device_ops disdevops = {
 	.query_pkey = dis_query_pkey,
 	.query_port = dis_query_port,
 	.query_qp = dis_query_qp,
-	.req_notify_cq = dis_req_notify_cq, 
-    .query_device = dis_query_device, 
+	.req_notify_cq = dis_req_notify_cq,
+    .query_device = dis_query_device,
 
 	INIT_RDMA_OBJ_SIZE(ib_pd, dis_pd, ibpd),
 	INIT_RDMA_OBJ_SIZE(ib_ah, dis_ah, ibah),
@@ -53,7 +53,7 @@ static const struct ib_device_ops disdevops = {
 	INIT_RDMA_OBJ_SIZE(ib_ucontext, dis_ucontext, ibucontext),
 };
 
-static int driver_probe(struct device *dev)
+static int dis_driver_probe(struct device *dev)
 {
 	int ret;
 
@@ -87,7 +87,7 @@ static int driver_probe(struct device *dev)
 	return 0;
 }
 
-static int driver_remove(struct device *dev)
+static int dis_driver_remove(struct device *dev)
 {
 	printk(KERN_INFO "dis-dev remove.\n");
 
@@ -100,24 +100,15 @@ static int driver_remove(struct device *dev)
 struct device_driver dis_dev_drv = {
 	.name = DIS_ROPCIE_NAME,
 	.bus = &dis_bus_type,
-	.probe = driver_probe,
-	.remove = driver_remove,
+	.probe = dis_driver_probe,
+	.remove = dis_driver_remove,
 };
 
-// static struct attribute *dis_dev_attributes[] = {
-// 	&dev_attr_parent.attr,
-// 	NULL
-// };
-
-// static const struct attribute_group dis_attr_group = {
-// 	.attrs = dis_dev_attributes,
-// };
-
 //TODO: Refactor with goto fall-through unregistration
-static int __init dis_init_module(void)
+static int __init dis_driver_init(void)
 {
 	int ret;
-	printk(KERN_INFO "dis_init_module start.\n");
+	printk(KERN_INFO "dis_driver_init start.\n");
 
 	ret = driver_register(&dis_dev_drv);
 	if(ret) {
@@ -127,21 +118,21 @@ static int __init dis_init_module(void)
 	printk(KERN_INFO "dis-driver registered.\n");
 
 
-	printk(KERN_INFO "dis_init_module complete.\n");
+	printk(KERN_INFO "dis_driver_init complete.\n");
     return 0;
 }
 
-static void __exit dis_exit_module(void)
+static void __exit dis_driver_exit(void)
 {
-	printk(KERN_INFO "dis_exit_module start.\n");
+	printk(KERN_INFO "dis_driver_exit start.\n");
 
 	driver_unregister(&dis_dev_drv);
 	printk(KERN_INFO "dis-drv unregistered.\n");
 
-	printk(KERN_INFO "dis_exit_module complete.\n");
+	printk(KERN_INFO "dis_driver_exit complete.\n");
 }
 
-module_init(dis_init_module);
-module_exit(dis_exit_module);
+module_init(dis_driver_init);
+module_exit(dis_driver_exit);
 
 EXPORT_SYMBOL(dis_dev_drv);
