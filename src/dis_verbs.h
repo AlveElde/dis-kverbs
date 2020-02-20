@@ -2,6 +2,24 @@
 #define __DIS_VERBS_H__
 
 #include <rdma/ib_verbs.h>
+#include <rdma/ib_mad.h>
+
+// Provider-specific structures, are mandatory.
+struct dis_pd {
+	struct ib_pd ibpd;
+};
+
+struct dis_ah {
+	struct ib_ah ibah;
+};
+
+struct dis_cq {
+	struct ib_cq ibcq;
+};
+
+struct dis_ucontext {
+	struct ib_ucontext ibucontext;
+};
 
 // Device verbs.
 int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
@@ -52,7 +70,5 @@ int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
 //                             u32 flags,
 //                             struct ib_udata *udata);
 // void dis_destroy_ah(struct ib_ah *ibah, u32 flags);
-
-
 
 #endif /* __DIS_VERBS_H__ */
