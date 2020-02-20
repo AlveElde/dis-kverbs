@@ -1,10 +1,12 @@
 #ifndef __DIS_VERBS_H__
 #define __DIS_VERBS_H__
 
+#include "dis_main.h"
+
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_mad.h>
 
-// Provider-specific structures, are mandatory.
+// Provider-specific structures.
 struct dis_pd {
 	struct ib_pd ibpd;
 };
@@ -19,6 +21,12 @@ struct dis_cq {
 
 struct dis_ucontext {
 	struct ib_ucontext ibucontext;
+};
+
+struct dis_mr {
+	struct dis_device	*disdev;
+	struct ib_mr		ibmr;
+	struct ib_umem		*ibumem;
 };
 
 // Device verbs.

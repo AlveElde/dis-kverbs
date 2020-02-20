@@ -83,7 +83,13 @@ void dis_dealloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
 
 struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int acc)
 {
-    return 0;
+    struct dis_mr *dismr;
+
+    dismr = kzalloc(sizeof(*dismr), GFP_KERNEL);
+	if (!dismr)
+		return ERR_PTR(-ENOMEM);
+
+    return NULL;
 }
 
 int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
@@ -117,7 +123,7 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
                             struct ib_qp_init_attr *init_attr,
                             struct ib_udata *udata)
 {
-    return 0;
+    return NULL;
 }
 
 int dis_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *qp_attr,

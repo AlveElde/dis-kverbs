@@ -2,9 +2,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
-
 #include <linux/device.h>
-#include <linux/kdev_t.h>
 
 #include "dis_main.h"
 #include "dis_verbs.h"
@@ -12,8 +10,6 @@
 #define MINOR_BASE  0
 #define MINOR_COUNT	255
 
-#define DIS_BUS_NAME 		"dis-bus"
-#define DIS_BUS_DEV_NAME 	"dis-bus-device"
 #define DIS_DRV_NAME 		"dis-device"
 
 #define DIS_ROPCIE_DRV_VERSION "0.0"
@@ -23,15 +19,14 @@ MODULE_DESCRIPTION(DIS_ROPCIE_DRV_DESC " " DIS_ROPCIE_DRV_VERSION);
 MODULE_AUTHOR("Alve Elde");
 MODULE_LICENSE("GPL");
 
-// IB REGISTER
+// BUS
+extern struct bus_type dis_bus_type;
+extern struct device dis_bus_dev;
 
-//TODO: Delete
-static int dis_enable_driver(struct ib_device *ibdev)
-{
-	return 0;
-}
+// IB DEVICE
+static struct dis_device *disdev;
 
-static const struct ib_device_ops dis_dev_ops = {
+static const struct ib_device_ops disdevops = {
 	.owner = THIS_MODULE,
 	.driver_id = RDMA_DRIVER_UNKNOWN,
 	.uverbs_abi_ver = 1,
@@ -55,73 +50,43 @@ static const struct ib_device_ops dis_dev_ops = {
 	.req_notify_cq = dis_req_notify_cq, 
     .query_device = dis_query_device, 
 
-	.enable_driver = dis_enable_driver,
-
 	INIT_RDMA_OBJ_SIZE(ib_pd, dis_pd, ibpd),
 	INIT_RDMA_OBJ_SIZE(ib_ah, dis_ah, ibah),
 	INIT_RDMA_OBJ_SIZE(ib_cq, dis_cq, ibcq),
 	INIT_RDMA_OBJ_SIZE(ib_ucontext, dis_ucontext, ibucontext),
 };
 
-// IB DEVICE
-struct dis_ib_device {
-    struct ib_device ibdev;
-};
-static struct dis_ib_device *disibdev;
-
-// BUS
-static int dis_bus_match(struct device *dev, struct device_driver *driver)
-{
-	printk(KERN_INFO "dis-bus match.\n");
-	return !strncmp(dev_name(dev), driver->name, strlen(driver->name));	
-}
-
-struct bus_type disbus = {
-    .name = DIS_BUS_NAME,
-    .match = dis_bus_match,
-};
-
-// BUS DEVICE
-static void dis_bus_dev_release(struct device *dev)
-{
-    printk(KERN_INFO "dis-bus-dev release.\n");
-}
-
-struct device disbusdev = {
-    .init_name = DIS_BUS_DEV_NAME,
-	.release = dis_bus_dev_release,
-};
 
 // DRIVER
-static int dis_driver_probe(struct device *dev)
+static int driver_probe(struct device *dev)
 {
 	int ret;
 
 	printk(KERN_INFO "dis-dev probe.\n");
 
 	// IB DEVICE
-	disibdev = ib_alloc_device(dis_ib_device, ibdev);
-	if(!disibdev) {
+	disdev = ib_alloc_device(dis_device, ibdev);
+	if(!disdev) {
 		printk(KERN_INFO "ib_alloc_device failed!\n");
 		return -1;
 	}
 	printk(KERN_INFO "dis-ib-dev allocated.\n");
 
 	// IB REGISTER
-	disibdev->ibdev.uverbs_cmd_mask = (1ull);
-	disibdev->ibdev.node_type = RDMA_NODE_UNSPECIFIED;
-	disibdev->ibdev.phys_port_cnt = 1;
-	disibdev->ibdev.num_comp_vectors = 1;
-	disibdev->ibdev.local_dma_lkey = 0;
-	disibdev->ibdev.node_guid = 1234;
-	disibdev->ibdev.dev.parent = dev;
-	strlcpy(disibdev->ibdev.name, "dis", IB_DEVICE_NAME_MAX);
-	ib_set_device_ops(&(disibdev->ibdev), &dis_dev_ops);
+	disdev->ibdev.uverbs_cmd_mask = (1ull);
+	disdev->ibdev.node_type = RDMA_NODE_UNSPECIFIED;
+	disdev->ibdev.phys_port_cnt = 1;
+	disdev->ibdev.num_comp_vectors = 1;
+	disdev->ibdev.local_dma_lkey = 0;
+	disdev->ibdev.node_guid = 1234;
+	disdev->ibdev.dev.parent = dev;
+	strlcpy(disdev->ibdev.name, "dis", IB_DEVICE_NAME_MAX);
+	ib_set_device_ops(&(disdev->ibdev), &disdevops);
 
-	ret = ib_register_device(&(disibdev->ibdev), "dis");
+	ret = ib_register_device(&(disdev->ibdev), "dis");
 	if(ret) {
 		printk(KERN_INFO "ib_device_register failed!\n");
-		ib_dealloc_device(&(disibdev->ibdev));
+		ib_dealloc_device(&(disdev->ibdev));
 		return -1;
 	}
 	printk(KERN_INFO "dis-ib-dev registered.\n");
@@ -129,38 +94,36 @@ static int dis_driver_probe(struct device *dev)
 	return 0;
 }
 
-static int dis_driver_remove(struct device *dev)
+static int driver_remove(struct device *dev)
 {
 	printk(KERN_INFO "dis-dev remove.\n");
 
 	// IB REGISTER
 	//TODO: Move to dev_release?
-	ib_unregister_device(&(disibdev->ibdev));
-	ib_dealloc_device(&(disibdev->ibdev));
+	ib_unregister_device(&(disdev->ibdev));
+	ib_dealloc_device(&(disdev->ibdev));
 	return 0;
 }
 
-struct device_driver disdrv = {
+struct device_driver drv = {
 	.name = DIS_DRV_NAME,
-	.bus = &disbus,
-	.probe = dis_driver_probe,
-	.remove = dis_driver_remove,
+	.bus = &dis_bus_type,
+	.probe = driver_probe,
+	.remove = driver_remove,
 };
 
 // DEVICE
-static void dis_dev_release(struct device *dev)
+static void dev_release(struct device *dev)
 {
     printk(KERN_INFO "dis-dev release.\n");
 }
 
-struct device disdev = {
+struct device dev = {
 	.init_name = DIS_DRV_NAME,
-    .bus = &disbus,
-	.parent = &disbusdev,
-	.release = dis_dev_release,
+    .bus = &dis_bus_type,
+	.parent = &dis_bus_dev,
+	.release = dev_release,
 };
-
-
 
 // static struct attribute *dis_dev_attributes[] = {
 // 	&dev_attr_parent.attr,
@@ -179,40 +142,19 @@ static int __init dis_init_module(void)
 	int ret;
 	printk(KERN_INFO "dis_init_module start.\n");
 
-	// BUS
-    ret = bus_register(&disbus);
-    if(ret) {
-        printk(KERN_INFO "bus_register failed!\n");
-        return -1;
-    }
-    printk(KERN_INFO "dis-bus registered.\n");
-
-	// BUS DEVICE
-	ret = device_register(&disbusdev);
-    if (ret) {
-		printk(KERN_INFO "bus device_register failed!\n");
-		bus_unregister(&disbus);
-        return -1;
-    }
-	printk(KERN_INFO "dis-bus-dev registered.\n");
-
 	// DRIVER
-	ret = driver_register(&disdrv);
+	ret = driver_register(&drv);
 	if(ret) {
 		printk(KERN_INFO "driver_register failed!\n");
-		device_unregister(&disbusdev);
-		bus_unregister(&disbus);
 		return -1;
 	}
 	printk(KERN_INFO "dis-driver registered.\n");
 
 	// DEVICE
-	ret = device_register(&disdev);
+	ret = device_register(&dev);
 	if(ret) {
 		printk(KERN_INFO "device_register failed!\n");
-		driver_unregister(&disdrv);
-		device_unregister(&disbusdev);
-		bus_unregister(&disbus);
+		driver_unregister(&drv);
 		return -1;
 	}
 	printk(KERN_INFO "dis-dev registered.\n");
@@ -228,20 +170,12 @@ static void __exit dis_exit_module(void)
 	printk(KERN_INFO "dis_exit_module start.\n");
 	
 	// DEVICE
-	device_unregister(&disdev);
+	device_unregister(&dev);
 	printk(KERN_INFO "dis-dev unregistered.\n");
 
 	// DRIVER
-	driver_unregister(&disdrv);
+	driver_unregister(&drv);
 	printk(KERN_INFO "dis-drv unregistered.\n");
-
-	// BUS DEVICE
-	device_unregister(&disbusdev);
-	printk(KERN_INFO "dis-bus-dev unregistered.\n");
-
-	// BUS
-	bus_unregister(&disbus);
-	printk(KERN_INFO "dis-bus unregistered.\n");
 
 	printk(KERN_INFO "dis_exit_module complete.\n");
 }
