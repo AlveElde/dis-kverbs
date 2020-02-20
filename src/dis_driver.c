@@ -20,8 +20,7 @@ MODULE_LICENSE("GPL");
 
 extern struct bus_type dis_bus_type;
 extern struct device dis_bus_dev;
-
-static struct dis_device *disdev;
+static struct dis_dev *disdev;
 
 static const struct ib_device_ops disdevops = {
 	.owner = THIS_MODULE,
@@ -59,7 +58,7 @@ static int dis_driver_probe(struct device *dev)
 
 	printk(KERN_INFO "dis-dev probe.\n");
 
-	disdev = ib_alloc_device(dis_device, ibdev);
+	disdev = ib_alloc_device(dis_dev, ibdev);
 	if(!disdev) {
 		printk(KERN_INFO "ib_alloc_device failed!\n");
 		return -1;
@@ -70,7 +69,7 @@ static int dis_driver_probe(struct device *dev)
 	disdev->ibdev.node_type = RDMA_NODE_UNSPECIFIED;
 	disdev->ibdev.phys_port_cnt = 1;
 	disdev->ibdev.num_comp_vectors = 1;
-	disdev->ibdev.local_dma_lkey = 0;
+	disdev->ibdev.local_dma_lkey = 1234;
 	disdev->ibdev.node_guid = 1234;
 	disdev->ibdev.dev.parent = dev;
 	strlcpy(disdev->ibdev.name, "dis", IB_DEVICE_NAME_MAX);
@@ -104,7 +103,6 @@ struct device_driver dis_dev_drv = {
 	.remove = dis_driver_remove,
 };
 
-//TODO: Refactor with goto fall-through unregistration
 static int __init dis_driver_init(void)
 {
 	int ret;

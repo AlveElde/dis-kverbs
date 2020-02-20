@@ -1,18 +1,22 @@
 #include "dis_verbs.h"
 
+
+
 int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
                         struct ib_udata *udata)
 {
 	props->fw_ver               = 1;
 	props->sys_image_guid       = 1234;
 	props->max_mr_size          = ~0ull;
-	props->page_size_cap        = 0xffff000  /* 4KB-128MB */;
+	props->page_size_cap        = 0xffff000; // 4KB-128MB
 	props->vendor_id            = 1234;
 	props->vendor_part_id       = 1234;
 	props->hw_ver               = 1;
 	props->max_qp               = 1234;
 	props->max_qp_wr            = 1234;
 	props->device_cap_flags     = IB_DEVICE_PORT_ACTIVE_EVENT;
+    props->device_cap_flags     |= IB_DEVICE_LOCAL_DMA_LKEY; 
+    props->device_cap_flags     |= IB_DEVICE_MEM_MGT_EXTENSIONS; // Support FR
 	props->max_send_sge         = 1234;
 	props->max_recv_sge         = 1234;
 	props->max_sge_rd           = 1;
@@ -73,28 +77,52 @@ int dis_query_pkey(struct ib_device *ibdev, u8 port, u16 index,
 
 int dis_alloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
 {
-    return -42;
+    struct ib_device *ibdev = ibpd->device;
+    struct dis_dev *disdev = to_dis_dev(ibdev);
+    struct dis_pd *dispd = to_dis_pd(ibpd);
+
+    dispd->disdev = disdev;
+
+    //TODO: process udata?
+
+    return 0;
 }
 
 void dis_dealloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
 {
-    
+    // Nothing to do
 }
 
-struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int acc)
+struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access)
 {
     struct dis_mr *dismr;
+    struct dis_pd *dispd = to_dis_pd(ibpd);
+    struct dis_dev *disdev = dispd->disdev;
 
     dismr = kzalloc(sizeof(*dismr), GFP_KERNEL);
-	if (!dismr)
-		return ERR_PTR(-ENOMEM);
+	if (!dismr) {
+        dev_err(&ibpd->device->dev, "dis_get_dma_mr failed!\n");
+		return NULL;
+    }
 
-    return NULL;
+    dismr->disdev = disdev;
+
+    return &dismr->ibmr;
 }
 
 int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
 {
-    return -42;
+    struct dis_mr *dismr = to_dis_mr(ibmr);
+    
+    if (!dismr) {
+        dev_err(&ibmr->device->dev, "dis_dereg_mr failed!\n");
+		return -42;
+    }
+
+    //TODO: Reuse memory?
+    kfree(dismr);
+
+    return 0;
 }
 
 int dis_create_cq(struct ib_cq *ibcq,
