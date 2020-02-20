@@ -4,15 +4,13 @@
 #include <linux/types.h>
 #include <linux/device.h>
 
-
-#define BUS_NAME 			"dis-bus"
-#define DIS_BUS_DEV_NAME 	"dis_bus_device"
+#define BUS_NAME            "dis-bus"
+#define DIS_BUS_DEV_NAME    "dis_bus_device"
 
 MODULE_DESCRIPTION("DIS Bus");
 MODULE_AUTHOR("Alve Elde");
 MODULE_LICENSE("GPL");
 
-// BUS
 static int bus_match(struct device *dev, struct device_driver *driver)
 {
 	printk(KERN_INFO "dis_bus_type match.\n");
@@ -24,10 +22,9 @@ struct bus_type dis_bus_type = {
     .match = bus_match,
 };
 
-// BUS DEVICE
 static void bus_dev_release(struct device *dev)
 {
-    printk(KERN_INFO "dis_bus_dev release.\n");
+    printk(KERN_INFO "bus_dev_release complete.\n");
 }
 
 struct device dis_bus_dev = {
@@ -35,13 +32,11 @@ struct device dis_bus_dev = {
 	.release = bus_dev_release,
 };
 
-// INIT
 static int __init dis_bus_init(void)
 {
 	int ret;
 	printk(KERN_INFO "dis_bus_init start.\n");
 
-    // BUS
     ret = bus_register(&dis_bus_type);
     if(ret) {
         printk(KERN_INFO "dis_bus_type failed!\n");
@@ -49,7 +44,6 @@ static int __init dis_bus_init(void)
     }
     printk(KERN_INFO "dis_bus_type registered.\n");
 
-	// BUS DEVICE
 	ret = device_register(&dis_bus_dev);
     if (ret) {
 		printk(KERN_INFO "bus device_register failed!\n");
@@ -62,16 +56,13 @@ static int __init dis_bus_init(void)
     return 0;
 }
 
-// EXIT
 static void __exit dis_bus_exit(void)
 {
 	printk(KERN_INFO "dis_bus_exit start.\n");
 
-    // BUS DEVICE
 	device_unregister(&dis_bus_dev);
 	printk(KERN_INFO "dis_bus_dev unregistered.\n");
 
-	// BUS
 	bus_unregister(&dis_bus_type);
 	printk(KERN_INFO "dis_bus_type unregistered.\n");
 

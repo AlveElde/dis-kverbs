@@ -10,8 +10,7 @@
 #define MINOR_BASE  0
 #define MINOR_COUNT	255
 
-#define DIS_DRV_NAME 		"dis-device"
-
+#define DIS_ROPCIE_NAME "dis-ropcie"
 #define DIS_ROPCIE_DRV_VERSION "0.0"
 #define DIS_ROPCIE_DRV_DESC "Dolphin Interconnect Soulutions RoPCIe Driver"
 
@@ -19,11 +18,9 @@ MODULE_DESCRIPTION(DIS_ROPCIE_DRV_DESC " " DIS_ROPCIE_DRV_VERSION);
 MODULE_AUTHOR("Alve Elde");
 MODULE_LICENSE("GPL");
 
-// BUS
 extern struct bus_type dis_bus_type;
 extern struct device dis_bus_dev;
 
-// IB DEVICE
 static struct dis_device *disdev;
 
 static const struct ib_device_ops disdevops = {
@@ -56,15 +53,12 @@ static const struct ib_device_ops disdevops = {
 	INIT_RDMA_OBJ_SIZE(ib_ucontext, dis_ucontext, ibucontext),
 };
 
-
-// DRIVER
 static int driver_probe(struct device *dev)
 {
 	int ret;
 
 	printk(KERN_INFO "dis-dev probe.\n");
 
-	// IB DEVICE
 	disdev = ib_alloc_device(dis_device, ibdev);
 	if(!disdev) {
 		printk(KERN_INFO "ib_alloc_device failed!\n");
@@ -72,7 +66,6 @@ static int driver_probe(struct device *dev)
 	}
 	printk(KERN_INFO "dis-ib-dev allocated.\n");
 
-	// IB REGISTER
 	disdev->ibdev.uverbs_cmd_mask = (1ull);
 	disdev->ibdev.node_type = RDMA_NODE_UNSPECIFIED;
 	disdev->ibdev.phys_port_cnt = 1;
@@ -98,31 +91,17 @@ static int driver_remove(struct device *dev)
 {
 	printk(KERN_INFO "dis-dev remove.\n");
 
-	// IB REGISTER
 	//TODO: Move to dev_release?
 	ib_unregister_device(&(disdev->ibdev));
 	ib_dealloc_device(&(disdev->ibdev));
 	return 0;
 }
 
-struct device_driver drv = {
-	.name = DIS_DRV_NAME,
+struct device_driver dis_dev_drv = {
+	.name = DIS_ROPCIE_NAME,
 	.bus = &dis_bus_type,
 	.probe = driver_probe,
 	.remove = driver_remove,
-};
-
-// DEVICE
-static void dev_release(struct device *dev)
-{
-    printk(KERN_INFO "dis-dev release.\n");
-}
-
-struct device dev = {
-	.init_name = DIS_DRV_NAME,
-    .bus = &dis_bus_type,
-	.parent = &dis_bus_dev,
-	.release = dev_release,
 };
 
 // static struct attribute *dis_dev_attributes[] = {
@@ -134,47 +113,29 @@ struct device dev = {
 // 	.attrs = dis_dev_attributes,
 // };
 
-// INIT
-
 //TODO: Refactor with goto fall-through unregistration
 static int __init dis_init_module(void)
 {
 	int ret;
 	printk(KERN_INFO "dis_init_module start.\n");
 
-	// DRIVER
-	ret = driver_register(&drv);
+	ret = driver_register(&dis_dev_drv);
 	if(ret) {
 		printk(KERN_INFO "driver_register failed!\n");
 		return -1;
 	}
 	printk(KERN_INFO "dis-driver registered.\n");
 
-	// DEVICE
-	ret = device_register(&dev);
-	if(ret) {
-		printk(KERN_INFO "device_register failed!\n");
-		driver_unregister(&drv);
-		return -1;
-	}
-	printk(KERN_INFO "dis-dev registered.\n");
 
 	printk(KERN_INFO "dis_init_module complete.\n");
     return 0;
 }
 
-// EXIT
-
 static void __exit dis_exit_module(void)
 {
 	printk(KERN_INFO "dis_exit_module start.\n");
-	
-	// DEVICE
-	device_unregister(&dev);
-	printk(KERN_INFO "dis-dev unregistered.\n");
 
-	// DRIVER
-	driver_unregister(&drv);
+	driver_unregister(&dis_dev_drv);
 	printk(KERN_INFO "dis-drv unregistered.\n");
 
 	printk(KERN_INFO "dis_exit_module complete.\n");
@@ -182,3 +143,5 @@ static void __exit dis_exit_module(void)
 
 module_init(dis_init_module);
 module_exit(dis_exit_module);
+
+EXPORT_SYMBOL(dis_dev_drv);
