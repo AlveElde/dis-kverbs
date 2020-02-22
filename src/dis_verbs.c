@@ -1,6 +1,6 @@
+#include <linux/slab.h>
+
 #include "dis_verbs.h"
-
-
 
 int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
                         struct ib_udata *udata)
@@ -77,31 +77,29 @@ int dis_query_pkey(struct ib_device *ibdev, u8 port, u16 index,
 
 int dis_alloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
 {
+    struct dis_pd *dispd = to_dis_pd(ibpd);
     struct ib_device *ibdev = ibpd->device;
     struct dis_dev *disdev = to_dis_dev(ibdev);
-    struct dis_pd *dispd = to_dis_pd(ibpd);
 
     dispd->disdev = disdev;
-
-    //TODO: process udata?
 
     return 0;
 }
 
 void dis_dealloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
 {
-    // Nothing to do
+    // Nothing to do.
 }
 
 struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access)
 {
     struct dis_mr *dismr;
-    struct dis_pd *dispd = to_dis_pd(ibpd);
-    struct dis_dev *disdev = dispd->disdev;
+    struct dis_dev *disdev = to_dis_dev(ibpd->device);
+    
 
     dismr = kzalloc(sizeof(*dismr), GFP_KERNEL);
 	if (!dismr) {
-        dev_err(&ibpd->device->dev, "dis_get_dma_mr failed!\n");
+        dev_err(&disdev->ibdev.dev, "dis_get_dma_mr failed!\n");
 		return NULL;
     }
 
@@ -113,27 +111,42 @@ struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access)
 int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
 {
     struct dis_mr *dismr = to_dis_mr(ibmr);
-    
-    if (!dismr) {
-        dev_err(&ibmr->device->dev, "dis_dereg_mr failed!\n");
-		return -42;
-    }
-
     //TODO: Reuse memory?
     kfree(dismr);
-
     return 0;
 }
 
-int dis_create_cq(struct ib_cq *ibcq,
-                    const struct ib_cq_init_attr *attr,
+int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *attr,
                     struct ib_udata *udata)
 {
-    return -42;
+    struct dis_cq *discq = to_dis_cq(ibcq);
+    struct dis_dev *disdev = to_dis_dev(ibcq->device);
+    
+    discq->disdev = disdev;
+    //TODO: Ensure CQE count does not exceed max.
+    ibcq->cqe = attr->cqe;
+
+    discq->queue = dis_create_queue(ibcq->cqe, sizeof(struct dis_cqe));
+    if (!discq->queue) {
+        dev_err(&disdev->ibdev.dev, "dis_create_cq failed!\n");
+		return -42;
+    }
+
+    spin_lock_init(&discq->lock);
+    return 0;
 }
 
-int dis_poll_cq(struct ib_cq *ibcq, int nwc, struct ib_wc *wc)
+int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc)
 {
+    // struct dis_cq *discq = to_dis_cq(ibcq);
+    // //struct dis_cqe* discqe;
+    // unsigned long flags;
+    // int i;
+
+    // spin_lock_irqsave(&discq->lock, flags);
+    
+
+    // spin_unlock_irqrestore(&discq->lock, flags);
     return -42;
 }
 
@@ -144,7 +157,8 @@ int dis_req_notify_cq(struct ib_cq *ibcq, enum ib_cq_notify_flags flags)
 
 void dis_destroy_cq(struct ib_cq *ibcq, struct ib_udata *udata)
 {
-    
+    struct dis_cq *discq = to_dis_cq(ibcq);
+    dis_destroy_queue(discq->queue);
 }
 
 struct ib_qp *dis_create_qp(struct ib_pd *ibpd,

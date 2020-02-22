@@ -1,10 +1,13 @@
 #ifndef __DIS_VERBS_H__
 #define __DIS_VERBS_H__
 
+#include <linux/interrupt.h>
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_mad.h>
 
 #include "dis_driver.h"
+#include "dis_queue.h"
+
 
 
 // Provider-specific structures.
@@ -27,9 +30,16 @@ struct dis_qp {
     struct dis_dev  *disdev;
 };
 
+struct dis_cqe {
+    struct ib_qp *ibqp;
+};
+
 struct dis_cq {
-	struct ib_cq    ibcq;
-    struct dis_dev  *disdev;
+	struct ib_cq        ibcq;
+    struct dis_dev      *disdev;
+    struct dis_queue    *queue;
+    int                 count;
+    spinlock_t		    lock;
 };
 
 struct dis_mr {
@@ -101,7 +111,7 @@ int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata);
 int dis_create_cq(struct ib_cq *ibcq,
                             const struct ib_cq_init_attr *attr,
                             struct ib_udata *udata);
-int dis_poll_cq(struct ib_cq *ibcq, int nwc, struct ib_wc *wc);
+int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc);
 int dis_req_notify_cq(struct ib_cq *ibcq, enum ib_cq_notify_flags flags);
 void dis_destroy_cq(struct ib_cq *ibcq, struct ib_udata *udata);
 

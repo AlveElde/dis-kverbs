@@ -56,6 +56,14 @@ static int dis_driver_probe(struct device *dev)
 {
 	int ret;
 
+	// if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64ULL)) &&
+	//     dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32ULL))) {
+	// 	dev_err(dev, "Not usable DMA addressing mode\n");
+	// 	ret = -EIO;
+	// 	goto error_failed_get_cfg;
+	// }
+
+
 	printk(KERN_INFO "dis-dev probe.\n");
 
 	disdev = ib_alloc_device(dis_dev, ibdev);
