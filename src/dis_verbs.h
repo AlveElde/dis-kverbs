@@ -22,10 +22,11 @@ struct dis_ah {
 };
 
 struct dis_wqe {
+    int wqe_num;
 };
 
 struct dis_wq {
-    struct ib_cq        *ibcq;
+    struct dis_cq       *discq;
     struct dis_queue    queue;
     u32                 max_wqe;
     u32                 max_sge;
@@ -33,11 +34,16 @@ struct dis_wq {
 };
 
 struct dis_qp {
-	struct ib_qp    ibqp;
-    struct dis_dev  *disdev;
-    struct dis_wq   sq;
-    struct dis_wq   rq;
-
+	struct ib_qp        ibqp;
+    struct dis_dev      *disdev;
+    struct dis_wq       sq;
+    struct dis_wq       rq;
+    enum ib_sig_type    sq_sig_type;
+	enum ib_qp_type     type;
+    enum ib_qp_state    state;
+    int                 mtu;
+    int                 qpn;
+    void                (*event_handler)(struct ib_event *, void *);
 };
 
 struct dis_cqe {

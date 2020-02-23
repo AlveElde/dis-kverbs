@@ -4,6 +4,8 @@
 #include "dis_verbs.h"
 #include "dis_driver.h"
 
+static int glbal_qpn = 10;
+
 int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
                         struct ib_udata *udata)
 {
@@ -217,50 +219,62 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
         dev_err(&ibdev->dev, "kzalloc disqp: " STATUS_FAIL);
 		return NULL;
     }
-    
-    disqp->disdev = disdev;
 
-    disqp->sq.ibcq      = init_attr->send_cq;
-    disqp->sq.max_wqe   = init_attr->cap.max_send_wr;
-    disqp->sq.max_sge   = init_attr->cap.max_send_sge;
+    disqp->disdev               = disdev;
+    disqp->sq_sig_type          = init_attr->sq_sig_type;
+    disqp->type                 = init_attr->qp_type;
+    disqp->state                = IB_QPS_RESET;
+    disqp->mtu                  = ib_mtu_enum_to_int(IB_MTU_256);
+    disqp->qpn                  = glbal_qpn++;
+    disqp->event_handler        = init_attr->event_handler;
+
+    disqp->ibqp.pd              = ibpd;
+    disqp->ibqp.send_cq         = init_attr->send_cq;
+    disqp->ibqp.recv_cq         = init_attr->recv_cq;
+    disqp->ibqp.srq             = init_attr->srq;
+    disqp->ibqp.qp_type         = init_attr->qp_type;
+    disqp->ibqp.qp_num          = disqp->qpn;
+
+    disqp->sq.discq             = to_dis_cq(init_attr->send_cq);
+    disqp->sq.max_wqe           = init_attr->cap.max_send_wr;
+    disqp->sq.max_sge           = init_attr->cap.max_send_sge;
+    disqp->sq.max_inline        = init_attr->cap.max_inline_data;
 
     disqp->sq.queue.max_elem    = disqp->sq.max_wqe;
     disqp->sq.queue.elem_size   = sizeof(struct dis_wqe);
+
+    disqp->rq.discq             = to_dis_cq(init_attr->recv_cq);
+    disqp->rq.max_wqe           = init_attr->cap.max_recv_wr;
+    disqp->rq.max_sge           = init_attr->cap.max_recv_sge;
+    disqp->rq.max_inline        = init_attr->cap.max_inline_data;
+
+    disqp->rq.queue.max_elem    = disqp->rq.max_wqe;
+    disqp->rq.queue.elem_size   = sizeof(struct dis_wqe);
+
     ret = dis_create_queue(&disqp->sq.queue);
-    if (!ret) {
+    if (ret) {
         dev_err(&ibdev->dev, "Create Send Queue: " STATUS_FAIL);
 		goto sq_err;
-    
     }
 
-    disqp->rq.ibcq      = init_attr->recv_cq;
-    disqp->rq.max_wqe   = init_attr->cap.max_recv_wr;
-    disqp->rq.max_sge   = init_attr->cap.max_recv_sge;
-
-    disqp->rq.queue.max_elem     = disqp->rq.max_wqe;
-    disqp->rq.queue.elem_size    = sizeof(struct dis_wqe);
     ret = dis_create_queue(&disqp->rq.queue);
-    if (!ret) {
+    if (ret) {
         dev_err(&ibdev->dev, "Create Receive Queue: " STATUS_FAIL);
 		goto rq_err;
-    
     }
     
     return &disqp->ibqp;
-    
-    // pr_devel("Destroy RQ");
-    // dis_destroy_queue(&disqp->rq.queue);
 
 rq_err:
-    pr_devel("Destroy SQ");
     dis_destroy_queue(&disqp->sq.queue);
+    pr_devel("Destroy SQ: " STATUS_COMPLETE);
 
 sq_err:
-    pr_devel("Free QP");
     kfree(disqp);
+    pr_devel("Free QP: " STATUS_COMPLETE);
 
     pr_devel(STATUS_FAIL);
-    return NULL;
+    return ERR_PTR(-1);;
 }
 
 int dis_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
@@ -284,10 +298,23 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 
 int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
 {
+    struct dis_qp *disqp = to_dis_qp(ibqp);
+    // struct ib_device *ibdev = ibqp->device;
+    // struct dis_dev *disdev  = to_dis_dev(ibdev);
+
     pr_devel(STATUS_START);
 
-    pr_devel(STATUS_FAIL);
-    return -42;
+    dis_destroy_queue(&disqp->rq.queue);
+    pr_devel("Destroy RQ: " STATUS_COMPLETE);
+
+    dis_destroy_queue(&disqp->sq.queue);
+    pr_devel("Destroy SQ: " STATUS_COMPLETE);
+
+    kfree(disqp);
+    pr_devel("Free QP: " STATUS_COMPLETE);
+
+    pr_devel(STATUS_COMPLETE);
+    return 0;
 }
 
 int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
