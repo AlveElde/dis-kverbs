@@ -1,8 +1,6 @@
 #ifndef __DIS_QUEUE_H__
 #define __DIS_QUEUE_H__
 
-#include <linux/types.h>
-
 #include <rdma/ib_verbs.h>
 
 struct dis_queue {

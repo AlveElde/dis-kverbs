@@ -1,11 +1,17 @@
+#define DEBUG
+#define pr_fmt(fmt) KBUILD_MODNAME ": fn: %s, ln: %d: " fmt, __func__, __LINE__
+
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/types.h>
 #include <linux/device.h>
 
 #define BUS_NAME            "dis-bus"
 #define DIS_BUS_DEV_NAME    "dis_bus_device"
+
+#define STATUS_START    "Started.\n"
+#define STATUS_COMPLETE "Completed.\n"
+#define STATUS_FAIL     "Failed.\n"
 
 MODULE_DESCRIPTION("DIS Bus");
 MODULE_AUTHOR("Alve Elde");
@@ -13,7 +19,6 @@ MODULE_LICENSE("GPL");
 
 static int bus_match(struct device *dev, struct device_driver *driver)
 {
-	printk(KERN_INFO "dis_bus_type match.\n");
 	return !strncmp(dev_name(dev), driver->name, strlen(driver->name));	
 }
 
@@ -24,7 +29,7 @@ struct bus_type dis_bus_type = {
 
 static void bus_dev_release(struct device *dev)
 {
-    printk(KERN_INFO "bus_dev_release complete.\n");
+    pr_devel(STATUS_COMPLETE);
 }
 
 struct device dis_bus_dev = {
@@ -35,38 +40,38 @@ struct device dis_bus_dev = {
 static int __init dis_bus_init(void)
 {
 	int ret;
-	printk(KERN_INFO "dis_bus_init start.\n");
+	pr_devel(STATUS_START);
 
     ret = bus_register(&dis_bus_type);
     if(ret) {
-        printk(KERN_INFO "dis_bus_type failed!\n");
+        pr_devel("dis_bus_type register: " STATUS_FAIL);
         return -1;
     }
-    printk(KERN_INFO "dis_bus_type registered.\n");
+    pr_devel("dis_bus_type register: " STATUS_COMPLETE);
 
 	ret = device_register(&dis_bus_dev);
     if (ret) {
-		printk(KERN_INFO "bus device_register failed!\n");
+		pr_devel("dis_bus_dev register: " STATUS_FAIL);
 		bus_unregister(&dis_bus_type);
         return -1;
     }
-	printk(KERN_INFO "dis_bus_dev registered.\n");
+	pr_devel("dis_bus_dev register: " STATUS_COMPLETE);
 
-	printk(KERN_INFO "dis_bus_init complete.\n");
+	pr_devel(STATUS_COMPLETE);
     return 0;
 }
 
 static void __exit dis_bus_exit(void)
 {
-	printk(KERN_INFO "dis_bus_exit start.\n");
+	pr_devel(STATUS_START);
 
 	device_unregister(&dis_bus_dev);
-	printk(KERN_INFO "dis_bus_dev unregistered.\n");
+	pr_devel("dis_bus_dev unregister: " STATUS_COMPLETE);
 
 	bus_unregister(&dis_bus_type);
-	printk(KERN_INFO "dis_bus_type unregistered.\n");
+	pr_devel("dis_bus_type unregister: " STATUS_COMPLETE);
 
-	printk(KERN_INFO "dis_bus_exit complete.\n");
+	pr_devel(STATUS_COMPLETE);
 }
 
 module_init(dis_bus_init);

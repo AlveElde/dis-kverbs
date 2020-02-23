@@ -1,7 +1,6 @@
 #ifndef __DIS_VERBS_H__
 #define __DIS_VERBS_H__
 
-#include <linux/interrupt.h>
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_mad.h>
 

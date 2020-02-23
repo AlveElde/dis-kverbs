@@ -1,7 +1,9 @@
+#define DEBUG
+#define pr_fmt(fmt) KBUILD_MODNAME ": fn: %s, ln: %d: " fmt, __func__, __LINE__
+
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/types.h>
 #include <linux/device.h>
 
 MODULE_DESCRIPTION("DIS Device");
@@ -10,13 +12,17 @@ MODULE_LICENSE("GPL");
 
 #define DIS_ROPCIE_NAME "dis-ropcie"
 
+#define STATUS_START    "Started.\n"
+#define STATUS_COMPLETE "Completed.\n"
+#define STATUS_FAIL     "Failed.\n"
+
 extern struct bus_type dis_bus_type;
 extern struct device dis_bus_dev;
 extern struct device dis_dev_drv;
 
 static void dis_dev_release(struct device *dev)
 {
-    printk(KERN_INFO "dis_dev_release complete.\n");
+    pr_devel(STATUS_COMPLETE);
 }
 
 struct device dis_dev = {
@@ -29,27 +35,28 @@ struct device dis_dev = {
 static int __init dis_device_init(void)
 {
 	int ret;
-	printk(KERN_INFO "dis_device_init start.\n");
+
+	pr_devel(STATUS_START);
 
 	ret = device_register(&dis_dev);
 	if(ret) {
-		printk(KERN_INFO "device_register failed!\n");
+		pr_devel("dis_dev register: " STATUS_FAIL);
 		return -1;
 	}
-	printk(KERN_INFO "dis-dev registered.\n");
+	pr_devel("dis_dev register: " STATUS_COMPLETE);
 
-	printk(KERN_INFO "dis_device_init complete.\n");
+	pr_devel(STATUS_COMPLETE);
     return 0;
 }
 
 static void __exit dis_device_exit(void)
 {
-	printk(KERN_INFO "dis_device_exit start.\n");
+	pr_devel(STATUS_START);
 
 	device_unregister(&dis_dev);
-	printk(KERN_INFO "dis-dev unregistered.\n");
+	pr_devel(STATUS_COMPLETE);
 
-	printk(KERN_INFO "dis_device_exit complete.\n");
+	pr_devel(STATUS_COMPLETE);
 }
 
 module_init(dis_device_init);

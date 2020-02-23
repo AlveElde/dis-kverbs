@@ -1,11 +1,9 @@
 #define DEBUG
 #define pr_fmt(fmt) KBUILD_MODNAME ": fn: %s, ln: %d: " fmt, __func__, __LINE__
 
+#include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
-#include <linux/kernel.h>
-#include <linux/types.h>
-#include <linux/device.h>
 
 #include "dis_driver.h"
 #include "dis_verbs.h"

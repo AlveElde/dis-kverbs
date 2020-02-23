@@ -1,8 +1,6 @@
 #define DEBUG
 #define pr_fmt(fmt) KBUILD_MODNAME ": fn: %s, ln: %d: " fmt, __func__, __LINE__
 
-#include <linux/slab.h>
-
 #include "dis_verbs.h"
 #include "dis_driver.h"
 
@@ -148,7 +146,7 @@ int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *attr,
     struct dis_cq *discq = to_dis_cq(ibcq);
     struct ib_device *ibdev = ibcq->device;
     struct dis_dev *disdev = to_dis_dev(ibdev);
-    
+
     pr_devel(STATUS_START);
     
     discq->disdev = disdev;
