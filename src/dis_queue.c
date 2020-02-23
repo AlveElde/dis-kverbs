@@ -4,36 +4,51 @@
 #include "dis_queue.h"
 #include "dis_driver.h"
 
-struct dis_queue *dis_create_queue(struct ib_device *ibdev, int cap, size_t elem_size)
+int dis_create_queue(struct dis_queue* queue)
 {
-    struct dis_queue* queue;
-
     pr_devel(STATUS_START);
 
-    queue = kmalloc(sizeof(struct dis_queue), GFP_KERNEL);
     if(!queue) {
-        dev_err(&ibdev->dev, "kmalloc queue" STATUS_FAIL);
-        return NULL;
+        pr_devel("Queue is NULL: " STATUS_FAIL);
+        return -1;
     }
 
-    queue->cap = cap;
-    queue->elem_size = elem_size;
-    queue->buf = kmalloc(queue->cap * queue->elem_size, GFP_KERNEL);
+    queue->buf = NULL;
+
+    if(queue->max_elem < 0 || queue->elem_size < 0) {
+        pr_devel("Queue dimension(s) negative: " STATUS_FAIL);
+        return -1;
+    }
+
+    if(queue->max_elem == 0 || queue->elem_size == 0) {
+        pr_devel("Queue of 0 size requested: " STATUS_COMPLETE);
+        return 0;
+    }
+
+    queue->buf = kmalloc(queue->max_elem * queue->elem_size, GFP_KERNEL);
     if(!queue->buf) {
-        dev_err(&ibdev->dev, "kmalloc buf" STATUS_FAIL);
-        return NULL;
+        pr_devel("kmalloc queue: " STATUS_FAIL);
+        return -1;
     }
 
     pr_devel(STATUS_COMPLETE);
-    return queue;
+    return 0;
 }
 
 void dis_destroy_queue(struct dis_queue* queue)
 {
     pr_devel(STATUS_START);
 
-    kfree(queue->buf);
-    kfree(queue);
+    if(!queue) {
+        pr_devel("Queue is NULL: " STATUS_FAIL);
+        return;
+    }
 
+    if(!queue->buf) {
+        pr_devel("Queue buf is NULL: " STATUS_FAIL);
+        return;
+    }
+
+    kfree(queue->buf);
     pr_devel(STATUS_COMPLETE);
 }

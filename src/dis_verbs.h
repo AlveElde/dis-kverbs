@@ -21,9 +21,23 @@ struct dis_ah {
     struct dis_dev  *disdev;
 };
 
+struct dis_wqe {
+};
+
+struct dis_wq {
+    struct ib_cq        *ibcq;
+    struct dis_queue    queue;
+    u32                 max_wqe;
+    u32                 max_sge;
+    u32                 max_inline;
+};
+
 struct dis_qp {
 	struct ib_qp    ibqp;
     struct dis_dev  *disdev;
+    struct dis_wq   sq;
+    struct dis_wq   rq;
+
 };
 
 struct dis_cqe {
@@ -33,9 +47,7 @@ struct dis_cqe {
 struct dis_cq {
 	struct ib_cq        ibcq;
     struct dis_dev      *disdev;
-    struct dis_queue    *queue;
-    int                 count;
-    spinlock_t		    lock;
+    struct dis_queue    queue;
 };
 
 struct dis_mr {
@@ -105,7 +117,7 @@ int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata);
 
 // Completion Queue verbs.
 int dis_create_cq(struct ib_cq *ibcq,
-                            const struct ib_cq_init_attr *attr,
+                            const struct ib_cq_init_attr *init_attr,
                             struct ib_udata *udata);
 int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc);
 int dis_req_notify_cq(struct ib_cq *ibcq, enum ib_cq_notify_flags flags);
@@ -115,11 +127,11 @@ void dis_destroy_cq(struct ib_cq *ibcq, struct ib_udata *udata);
 struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
                             struct ib_qp_init_attr *init_attr,
                             struct ib_udata *udata);
-int dis_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *qp_attr,
-                 int qp_attr_mask,
-                 struct ib_qp_init_attr *qp_init_attr);
-int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *qp_attr,
-                  int qp_attr_mask, struct ib_udata *udata);
+int dis_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
+                 int attr_mask,
+                 struct ib_qp_init_attr *init_attr);
+int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
+                  int attr_mask, struct ib_udata *udata);
 int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata);
 
 // Posting verbs.
