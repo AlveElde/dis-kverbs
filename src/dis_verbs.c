@@ -1,10 +1,16 @@
+#define DEBUG
+#define pr_fmt(fmt) KBUILD_MODNAME ": fn: %s, ln: %d: " fmt, __func__, __LINE__
+
 #include <linux/slab.h>
 
 #include "dis_verbs.h"
+#include "dis_driver.h"
 
 int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
                         struct ib_udata *udata)
 {
+    pr_devel(STATUS_START);
+
 	props->fw_ver               = 1;
 	props->sys_image_guid       = 1234;
 	props->max_mr_size          = ~0ull;
@@ -30,12 +36,14 @@ int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
 	props->max_pkeys            = 1;
 	props->local_ca_ack_delay   = 1;
 
+    pr_devel(STATUS_COMPLETE);
     return 0;
 }
 
 int dis_query_port(struct ib_device *ibdev, u8 port,
                     struct ib_port_attr *props)
 {
+    pr_devel(STATUS_START);
     //props->port_cap_flags   = IB_PORT_CM_SUP;
     // props->port_cap_flags   = IB_PORT_REINIT_SUP;
     // props->port_cap_flags   |= IB_PORT_DEVICE_MGMT_SUP;
@@ -44,12 +52,14 @@ int dis_query_port(struct ib_device *ibdev, u8 port,
 	props->pkey_tbl_len     = 1;
 	props->max_msg_sz       = 0x80000000;
 
+    pr_devel(STATUS_COMPLETE);
     return 0;
 }
 
 int dis_get_port_immutable(struct ib_device *ibdev, u8 port_num,
 				            struct ib_port_immutable *immutable)
 {
+    pr_devel(STATUS_START);
     //int ret;
     // struct ib_port_attr port_attr;
     // ret = dis_query_port(ibdev, port_num, &port_attr);
@@ -64,14 +74,18 @@ int dis_get_port_immutable(struct ib_device *ibdev, u8 port_num,
     
     // This has to be 0 in order to not trigger the verify_immutable check
 	immutable->max_mad_size = 0; //IB_MGMT_MAD_SIZE;
+    pr_devel(STATUS_COMPLETE);
     return 0;
 }
 
 int dis_query_pkey(struct ib_device *ibdev, u8 port, u16 index,
 			        u16 *pkey)
 {
+    pr_devel(STATUS_START);
+
     *pkey = 0xffff;
     
+    pr_devel(STATUS_COMPLETE);
     return 0;   
 }
 
@@ -81,38 +95,50 @@ int dis_alloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
     struct ib_device *ibdev = ibpd->device;
     struct dis_dev *disdev = to_dis_dev(ibdev);
 
+    pr_devel(STATUS_START);
+
     dispd->disdev = disdev;
 
+    pr_devel(STATUS_COMPLETE);
     return 0;
 }
 
 void dis_dealloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
 {
+    pr_devel(STATUS_START);
     // Nothing to do.
+    pr_devel(STATUS_COMPLETE);
 }
 
 struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access)
 {
     struct dis_mr *dismr;
     struct dis_dev *disdev = to_dis_dev(ibpd->device);
-    
+
+    pr_devel(STATUS_START);
 
     dismr = kzalloc(sizeof(*dismr), GFP_KERNEL);
 	if (!dismr) {
-        dev_err(&disdev->ibdev.dev, "dis_get_dma_mr failed!\n");
+        dev_err(&disdev->ibdev.dev, "dis_get_dma_mr " STATUS_FAIL);
 		return NULL;
     }
 
     dismr->disdev = disdev;
 
+    pr_devel(STATUS_COMPLETE);
     return &dismr->ibmr;
 }
 
 int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
 {
     struct dis_mr *dismr = to_dis_mr(ibmr);
+
+    pr_devel(STATUS_START);
+
     //TODO: Reuse memory?
     kfree(dismr);
+
+    pr_devel(STATUS_COMPLETE);
     return 0;
 }
 
@@ -120,19 +146,24 @@ int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *attr,
                     struct ib_udata *udata)
 {
     struct dis_cq *discq = to_dis_cq(ibcq);
-    struct dis_dev *disdev = to_dis_dev(ibcq->device);
+    struct ib_device *ibdev = ibcq->device;
+    struct dis_dev *disdev = to_dis_dev(ibdev);
+    
+    pr_devel(STATUS_START);
     
     discq->disdev = disdev;
     //TODO: Ensure CQE count does not exceed max.
     ibcq->cqe = attr->cqe;
 
-    discq->queue = dis_create_queue(ibcq->cqe, sizeof(struct dis_cqe));
+    discq->queue = dis_create_queue(ibdev, ibcq->cqe, sizeof(struct dis_cqe));
     if (!discq->queue) {
-        dev_err(&disdev->ibdev.dev, "dis_create_cq failed!\n");
+        dev_err(&disdev->ibdev.dev, "dis_create_cq " STATUS_FAIL);
 		return -42;
     }
 
     spin_lock_init(&discq->lock);
+
+    pr_devel(STATUS_COMPLETE);
     return 0;
 }
 
@@ -143,28 +174,41 @@ int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc)
     // unsigned long flags;
     // int i;
 
+    pr_devel(STATUS_START);
     // spin_lock_irqsave(&discq->lock, flags);
     
 
     // spin_unlock_irqrestore(&discq->lock, flags);
+    pr_devel(STATUS_FAIL);
     return -42;
 }
 
 int dis_req_notify_cq(struct ib_cq *ibcq, enum ib_cq_notify_flags flags)
 {
+    pr_devel(STATUS_START);
+
+    pr_devel(STATUS_FAIL);
     return -42;
 }
 
 void dis_destroy_cq(struct ib_cq *ibcq, struct ib_udata *udata)
 {
     struct dis_cq *discq = to_dis_cq(ibcq);
+
+    pr_devel(STATUS_START);
+
     dis_destroy_queue(discq->queue);
+
+    pr_devel(STATUS_COMPLETE);
 }
 
 struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
                             struct ib_qp_init_attr *init_attr,
                             struct ib_udata *udata)
 {
+    pr_devel(STATUS_START);
+
+    pr_devel(STATUS_COMPLETE);
     return NULL;
 }
 
@@ -172,28 +216,43 @@ int dis_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *qp_attr,
                     int qp_attr_mask,
                     struct ib_qp_init_attr *qp_init_attr)
 {
+    pr_devel(STATUS_START);
+
+    pr_devel(STATUS_FAIL);
     return -42;
 }
 
 int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *qp_attr,
                     int qp_attr_mask, struct ib_udata *udata)
 {
+    pr_devel(STATUS_START);
+
+    pr_devel(STATUS_FAIL);
     return -42;
 }
 
 int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
 {
+    pr_devel(STATUS_START);
+
+    pr_devel(STATUS_FAIL);
     return -42;
 }
 
 int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
                     const struct ib_send_wr **bad_wr)
 {
+    pr_devel(STATUS_START);
+
+    pr_devel(STATUS_FAIL);
     return -42;
 }
 
 int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
                     const struct ib_recv_wr **bad_wr)
 {
+    pr_devel(STATUS_START);
+
+    pr_devel(STATUS_FAIL);
     return -42;
 }

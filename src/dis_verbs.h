@@ -5,10 +5,7 @@
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_mad.h>
 
-#include "dis_driver.h"
 #include "dis_queue.h"
-
-
 
 // Provider-specific structures.
 struct dis_dev {

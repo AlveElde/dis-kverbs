@@ -1,3 +1,6 @@
+#define DEBUG
+#define pr_fmt(fmt) KBUILD_MODNAME ": fn: %s, ln: %d: " fmt, __func__, __LINE__
+
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -13,6 +16,7 @@
 #define DIS_ROPCIE_NAME "dis-ropcie"
 #define DIS_ROPCIE_DRV_VERSION "0.0"
 #define DIS_ROPCIE_DRV_DESC "Dolphin Interconnect Soulutions RoPCIe Driver"
+
 
 MODULE_DESCRIPTION(DIS_ROPCIE_DRV_DESC " " DIS_ROPCIE_DRV_VERSION);
 MODULE_AUTHOR("Alve Elde");
@@ -56,6 +60,8 @@ static int dis_driver_probe(struct device *dev)
 {
 	int ret;
 
+	pr_devel(STATUS_START);
+
 	// if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64ULL)) &&
 	//     dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32ULL))) {
 	// 	dev_err(dev, "Not usable DMA addressing mode\n");
@@ -63,15 +69,12 @@ static int dis_driver_probe(struct device *dev)
 	// 	goto error_failed_get_cfg;
 	// }
 
-
-	printk(KERN_INFO "dis-dev probe.\n");
-
 	disdev = ib_alloc_device(dis_dev, ibdev);
 	if(!disdev) {
-		printk(KERN_INFO "ib_alloc_device failed!\n");
+		dev_err(dev, "ib_alloc_device " STATUS_FAIL);
 		return -1;
 	}
-	printk(KERN_INFO "dis-ib-dev allocated.\n");
+	pr_devel("ib_alloc_device " STATUS_COMPLETE);
 
 	disdev->ibdev.uverbs_cmd_mask = (1ull);
 	disdev->ibdev.node_type = RDMA_NODE_UNSPECIFIED;
@@ -85,22 +88,24 @@ static int dis_driver_probe(struct device *dev)
 
 	ret = ib_register_device(&(disdev->ibdev), "dis");
 	if(ret) {
-		printk(KERN_INFO "ib_device_register failed!\n");
+		dev_err(dev, "ib_register_device " STATUS_FAIL);
 		ib_dealloc_device(&(disdev->ibdev));
 		return -1;
 	}
-	printk(KERN_INFO "dis-ib-dev registered.\n");
-	
+
+	pr_devel(STATUS_COMPLETE);
 	return 0;
 }
 
 static int dis_driver_remove(struct device *dev)
 {
-	printk(KERN_INFO "dis-dev remove.\n");
+	pr_devel(STATUS_START);
 
 	//TODO: Move to dev_release?
 	ib_unregister_device(&(disdev->ibdev));
 	ib_dealloc_device(&(disdev->ibdev));
+
+	pr_devel(STATUS_COMPLETE);
 	return 0;
 }
 
@@ -114,28 +119,26 @@ struct device_driver dis_dev_drv = {
 static int __init dis_driver_init(void)
 {
 	int ret;
-	printk(KERN_INFO "dis_driver_init start.\n");
+
+	pr_devel(STATUS_START);
 
 	ret = driver_register(&dis_dev_drv);
 	if(ret) {
-		printk(KERN_INFO "driver_register failed!\n");
+		pr_err("driver_register" STATUS_FAIL);
 		return -1;
 	}
-	printk(KERN_INFO "dis-driver registered.\n");
 
-
-	printk(KERN_INFO "dis_driver_init complete.\n");
+	pr_devel(STATUS_COMPLETE);
     return 0;
 }
 
 static void __exit dis_driver_exit(void)
 {
-	printk(KERN_INFO "dis_driver_exit start.\n");
+	pr_devel(STATUS_START);
 
 	driver_unregister(&dis_dev_drv);
-	printk(KERN_INFO "dis-drv unregistered.\n");
 
-	printk(KERN_INFO "dis_driver_exit complete.\n");
+	pr_devel(STATUS_COMPLETE);
 }
 
 module_init(dis_driver_init);
