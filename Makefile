@@ -5,6 +5,8 @@ dis_bus-objs := $(SRC)/dis_bus.o
 dis_driver-objs := $(SRC)/dis_driver.o $(SRC)/dis_verbs.o $(SRC)/dis_queue.o
 dis_device-objs := $(SRC)/dis_device.o
 
+EXTRA_CFLAGS += -DDEBUG
+
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
@@ -29,3 +31,5 @@ rm:
 	dmesg
 
 test: ins rm
+
+retest: clean all test

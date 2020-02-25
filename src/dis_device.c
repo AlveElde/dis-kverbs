@@ -1,5 +1,4 @@
-#define DEBUG
-#define pr_fmt(fmt) KBUILD_MODNAME ": fn: %s, ln: %d: " fmt, __func__, __LINE__
+#include "pr_fmt.h"
 
 #include <linux/module.h>
 #include <linux/init.h>

@@ -1,5 +1,4 @@
-#define DEBUG
-#define pr_fmt(fmt) KBUILD_MODNAME ": fn: %s, ln: %d: " fmt, __func__, __LINE__
+#include "pr_fmt.h"
 
 #include "dis_verbs.h"
 #include "dis_driver.h"
@@ -121,7 +120,7 @@ struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access)
     dismr = kzalloc(sizeof(struct dis_mr), GFP_KERNEL);
 	if (!dismr) {
         dev_err(&ibdev->dev, "dis_get_dma_mr " STATUS_FAIL);
-		return NULL;
+		return ERR_PTR(-1);
     }
 
     dismr->disdev = disdev;
@@ -217,7 +216,7 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
     disqp = kzalloc(sizeof(struct dis_qp), GFP_KERNEL);
 	if (!disqp) {
         dev_err(&ibdev->dev, "kzalloc disqp: " STATUS_FAIL);
-		return NULL;
+		return ERR_PTR(-1);
     }
 
     disqp->disdev               = disdev;

@@ -1,5 +1,4 @@
-#define DEBUG
-#define pr_fmt(fmt) KBUILD_MODNAME ": fn: %s, ln: %d: " fmt, __func__, __LINE__
+#include "pr_fmt.h"
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -8,13 +7,9 @@
 #include "dis_driver.h"
 #include "dis_verbs.h"
 
-#define MINOR_BASE  0
-#define MINOR_COUNT	255
-
 #define DIS_ROPCIE_NAME "dis-ropcie"
 #define DIS_ROPCIE_DRV_VERSION "0.0"
 #define DIS_ROPCIE_DRV_DESC "Dolphin Interconnect Soulutions RoPCIe Driver"
-
 
 MODULE_DESCRIPTION(DIS_ROPCIE_DRV_DESC " " DIS_ROPCIE_DRV_VERSION);
 MODULE_AUTHOR("Alve Elde");
