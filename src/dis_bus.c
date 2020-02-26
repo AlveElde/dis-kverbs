@@ -8,10 +8,6 @@
 #define BUS_NAME            "dis-bus"
 #define DIS_BUS_DEV_NAME    "dis_bus_device"
 
-#define STATUS_START    "Started.\n"
-#define STATUS_COMPLETE "Completed.\n"
-#define STATUS_FAIL     "Failed.\n"
-
 MODULE_DESCRIPTION("DIS Bus");
 MODULE_AUTHOR("Alve Elde");
 MODULE_LICENSE("GPL");
@@ -28,7 +24,7 @@ struct bus_type dis_bus_type = {
 
 static void bus_dev_release(struct device *dev)
 {
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
 }
 
 struct device dis_bus_dev = {
@@ -39,38 +35,38 @@ struct device dis_bus_dev = {
 static int __init dis_bus_init(void)
 {
 	int ret;
-	pr_devel(STATUS_START);
+	pr_devel(DIS_STATUS_START);
 
     ret = bus_register(&dis_bus_type);
     if(ret) {
-        pr_devel("dis_bus_type register: " STATUS_FAIL);
+        pr_devel("dis_bus_type register: " DIS_STATUS_FAIL);
         return -1;
     }
-    pr_devel("dis_bus_type register: " STATUS_COMPLETE);
+    pr_devel("dis_bus_type register: " DIS_STATUS_COMPLETE);
 
 	ret = device_register(&dis_bus_dev);
     if (ret) {
-		pr_devel("dis_bus_dev register: " STATUS_FAIL);
+		pr_devel("dis_bus_dev register: " DIS_STATUS_FAIL);
 		bus_unregister(&dis_bus_type);
         return -1;
     }
-	pr_devel("dis_bus_dev register: " STATUS_COMPLETE);
+	pr_devel("dis_bus_dev register: " DIS_STATUS_COMPLETE);
 
-	pr_devel(STATUS_COMPLETE);
+	pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 static void __exit dis_bus_exit(void)
 {
-	pr_devel(STATUS_START);
+	pr_devel(DIS_STATUS_START);
 
 	device_unregister(&dis_bus_dev);
-	pr_devel("dis_bus_dev unregister: " STATUS_COMPLETE);
+	pr_devel("dis_bus_dev unregister: " DIS_STATUS_COMPLETE);
 
 	bus_unregister(&dis_bus_type);
-	pr_devel("dis_bus_type unregister: " STATUS_COMPLETE);
+	pr_devel("dis_bus_type unregister: " DIS_STATUS_COMPLETE);
 
-	pr_devel(STATUS_COMPLETE);
+	pr_devel(DIS_STATUS_COMPLETE);
 }
 
 module_init(dis_bus_init);

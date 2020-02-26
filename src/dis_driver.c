@@ -53,7 +53,7 @@ static int dis_driver_probe(struct device *dev)
 {
 	int ret;
 
-	pr_devel(STATUS_START);
+	pr_devel(DIS_STATUS_START);
 
 	// if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64ULL)) &&
 	//     dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32ULL))) {
@@ -64,10 +64,10 @@ static int dis_driver_probe(struct device *dev)
 
 	disdev = ib_alloc_device(dis_dev, ibdev);
 	if(!disdev) {
-		dev_err(dev, "ib_alloc_device " STATUS_FAIL);
+		dev_err(dev, "ib_alloc_device " DIS_STATUS_FAIL);
 		return -1;
 	}
-	pr_devel("ib_alloc_device " STATUS_COMPLETE);
+	pr_devel("ib_alloc_device " DIS_STATUS_COMPLETE);
 
 	disdev->ibdev.uverbs_cmd_mask = (1ull);
 	disdev->ibdev.node_type = RDMA_NODE_UNSPECIFIED;
@@ -81,24 +81,24 @@ static int dis_driver_probe(struct device *dev)
 
 	ret = ib_register_device(&(disdev->ibdev), "dis");
 	if(ret) {
-		dev_err(dev, "ib_register_device " STATUS_FAIL);
+		dev_err(dev, "ib_register_device " DIS_STATUS_FAIL);
 		ib_dealloc_device(&(disdev->ibdev));
 		return -1;
 	}
 
-	pr_devel(STATUS_COMPLETE);
+	pr_devel(DIS_STATUS_COMPLETE);
 	return 0;
 }
 
 static int dis_driver_remove(struct device *dev)
 {
-	pr_devel(STATUS_START);
+	pr_devel(DIS_STATUS_START);
 
 	//TODO: Move to dev_release?
 	ib_unregister_device(&(disdev->ibdev));
 	ib_dealloc_device(&(disdev->ibdev));
 
-	pr_devel(STATUS_COMPLETE);
+	pr_devel(DIS_STATUS_COMPLETE);
 	return 0;
 }
 
@@ -113,25 +113,25 @@ static int __init dis_driver_init(void)
 {
 	int ret;
 
-	pr_devel(STATUS_START);
+	pr_devel(DIS_STATUS_START);
 
 	ret = driver_register(&dis_dev_drv);
 	if(ret) {
-		pr_err("driver_register" STATUS_FAIL);
+		pr_err("driver_register" DIS_STATUS_FAIL);
 		return -1;
 	}
 
-	pr_devel(STATUS_COMPLETE);
+	pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 static void __exit dis_driver_exit(void)
 {
-	pr_devel(STATUS_START);
+	pr_devel(DIS_STATUS_START);
 
 	driver_unregister(&dis_dev_drv);
 
-	pr_devel(STATUS_COMPLETE);
+	pr_devel(DIS_STATUS_COMPLETE);
 }
 
 module_init(dis_driver_init);

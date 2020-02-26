@@ -8,7 +8,7 @@ static int glbal_qpn = 10;
 int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
                         struct ib_udata *udata)
 {
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
 	props->fw_ver               = 1;
 	props->sys_image_guid       = 1234;
@@ -35,14 +35,14 @@ int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
 	props->max_pkeys            = 1;
 	props->local_ca_ack_delay   = 1;
 
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 int dis_query_port(struct ib_device *ibdev, u8 port,
                     struct ib_port_attr *props)
 {
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
     //props->port_cap_flags   = IB_PORT_CM_SUP;
     // props->port_cap_flags   = IB_PORT_REINIT_SUP;
     // props->port_cap_flags   |= IB_PORT_DEVICE_MGMT_SUP;
@@ -51,14 +51,14 @@ int dis_query_port(struct ib_device *ibdev, u8 port,
 	props->pkey_tbl_len     = 1;
 	props->max_msg_sz       = 0x80000000;
 
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 int dis_get_port_immutable(struct ib_device *ibdev, u8 port_num,
 				            struct ib_port_immutable *immutable)
 {
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
     //int ret;
     // struct ib_port_attr port_attr;
     // ret = dis_query_port(ibdev, port_num, &port_attr);
@@ -73,18 +73,18 @@ int dis_get_port_immutable(struct ib_device *ibdev, u8 port_num,
     
     // This has to be 0 in order to not trigger the verify_immutable check
 	immutable->max_mad_size = 0; //IB_MGMT_MAD_SIZE;
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 int dis_query_pkey(struct ib_device *ibdev, u8 port, u16 index,
 			        u16 *pkey)
 {
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
     *pkey = 0xffff;
     
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
     return 0;   
 }
 
@@ -94,19 +94,19 @@ int dis_alloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
     struct ib_device *ibdev = ibpd->device;
     struct dis_dev *disdev  = to_dis_dev(ibdev);
 
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
     dispd->disdev = disdev;
 
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 void dis_dealloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
 {
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
     // Nothing to do.
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
 }
 
 struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access)
@@ -115,17 +115,17 @@ struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access)
     struct ib_device *ibdev = ibpd->device;
     struct dis_dev *disdev  = to_dis_dev(ibdev);
 
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
     dismr = kzalloc(sizeof(struct dis_mr), GFP_KERNEL);
 	if (!dismr) {
-        dev_err(&ibdev->dev, "dis_get_dma_mr " STATUS_FAIL);
+        dev_err(&ibdev->dev, "dis_get_dma_mr " DIS_STATUS_FAIL);
 		return ERR_PTR(-1);
     }
 
     dismr->disdev = disdev;
 
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
     return &dismr->ibmr;
 }
 
@@ -133,12 +133,12 @@ int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
 {
     struct dis_mr *dismr = to_dis_mr(ibmr);
 
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
     //TODO: Reuse memory?
     kfree(dismr);
 
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
@@ -150,7 +150,7 @@ int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *init_attr,
     struct ib_device *ibdev = ibcq->device;
     struct dis_dev *disdev  = to_dis_dev(ibdev);
 
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
     
     //TODO: Ensure CQE count does not exceed max.
     //discq->max_cqe  = init_attr->cqe;
@@ -161,11 +161,11 @@ int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *init_attr,
     discq->queue.elem_size = sizeof(struct dis_cqe);
     ret = dis_create_queue(&discq->queue);
     if (ret) {
-        dev_err(&ibdev->dev, "Create queue: " STATUS_FAIL);
+        dev_err(&ibdev->dev, "Create queue: " DIS_STATUS_FAIL);
 		return -42;
     }
 
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
@@ -176,18 +176,18 @@ int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc)
     // unsigned long flags;
     // int i;
 
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
     
 
-    pr_devel(STATUS_FAIL);
+    pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
 
 int dis_req_notify_cq(struct ib_cq *ibcq, enum ib_cq_notify_flags flags)
 {
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
-    pr_devel(STATUS_FAIL);
+    pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
 
@@ -195,11 +195,11 @@ void dis_destroy_cq(struct ib_cq *ibcq, struct ib_udata *udata)
 {
     struct dis_cq *discq = to_dis_cq(ibcq);
 
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
     dis_destroy_queue(&discq->queue);
 
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
 }
 
 struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
@@ -211,11 +211,11 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
     struct ib_device *ibdev = ibpd->device;
     struct dis_dev *disdev  = to_dis_dev(ibdev);
 
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
     disqp = kzalloc(sizeof(struct dis_qp), GFP_KERNEL);
 	if (!disqp) {
-        dev_err(&ibdev->dev, "kzalloc disqp: " STATUS_FAIL);
+        dev_err(&ibdev->dev, "kzalloc disqp: " DIS_STATUS_FAIL);
 		return ERR_PTR(-1);
     }
 
@@ -252,13 +252,13 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
 
     ret = dis_create_queue(&disqp->sq.queue);
     if (ret) {
-        dev_err(&ibdev->dev, "Create Send Queue: " STATUS_FAIL);
+        dev_err(&ibdev->dev, "Create Send Queue: " DIS_STATUS_FAIL);
 		goto sq_err;
     }
 
     ret = dis_create_queue(&disqp->rq.queue);
     if (ret) {
-        dev_err(&ibdev->dev, "Create Receive Queue: " STATUS_FAIL);
+        dev_err(&ibdev->dev, "Create Receive Queue: " DIS_STATUS_FAIL);
 		goto rq_err;
     }
     
@@ -266,13 +266,13 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
 
 rq_err:
     dis_destroy_queue(&disqp->sq.queue);
-    pr_devel("Destroy SQ: " STATUS_COMPLETE);
+    pr_devel("Destroy SQ: " DIS_STATUS_COMPLETE);
 
 sq_err:
     kfree(disqp);
-    pr_devel("Free QP: " STATUS_COMPLETE);
+    pr_devel("Free QP: " DIS_STATUS_COMPLETE);
 
-    pr_devel(STATUS_FAIL);
+    pr_devel(DIS_STATUS_FAIL);
     return ERR_PTR(-1);;
 }
 
@@ -280,18 +280,18 @@ int dis_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
                     int attr_mask,
                     struct ib_qp_init_attr *init_attr)
 {
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
-    pr_devel(STATUS_FAIL);
+    pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
 
 int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
                     int attr_mask, struct ib_udata *udata)
 {
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
-    pr_devel(STATUS_FAIL);
+    pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
 
@@ -301,35 +301,35 @@ int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
     // struct ib_device *ibdev = ibqp->device;
     // struct dis_dev *disdev  = to_dis_dev(ibdev);
 
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
     dis_destroy_queue(&disqp->rq.queue);
-    pr_devel("Destroy RQ: " STATUS_COMPLETE);
+    pr_devel("Destroy RQ: " DIS_STATUS_COMPLETE);
 
     dis_destroy_queue(&disqp->sq.queue);
-    pr_devel("Destroy SQ: " STATUS_COMPLETE);
+    pr_devel("Destroy SQ: " DIS_STATUS_COMPLETE);
 
     kfree(disqp);
-    pr_devel("Free QP: " STATUS_COMPLETE);
+    pr_devel("Free QP: " DIS_STATUS_COMPLETE);
 
-    pr_devel(STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
                     const struct ib_send_wr **bad_wr)
 {
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
-    pr_devel(STATUS_FAIL);
+    pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
 
 int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
                     const struct ib_recv_wr **bad_wr)
 {
-    pr_devel(STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
-    pr_devel(STATUS_FAIL);
+    pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
