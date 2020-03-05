@@ -55,13 +55,6 @@ static int dis_driver_probe(struct device *dev)
 
 	pr_devel(DIS_STATUS_START);
 
-	// if (dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64ULL)) &&
-	//     dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32ULL))) {
-	// 	dev_err(dev, "Not usable DMA addressing mode\n");
-	// 	ret = -EIO;
-	// 	goto error_failed_get_cfg;
-	// }
-
 	disdev = ib_alloc_device(dis_dev, ibdev);
 	if(!disdev) {
 		dev_err(dev, "ib_alloc_device " DIS_STATUS_FAIL);
@@ -69,13 +62,13 @@ static int dis_driver_probe(struct device *dev)
 	}
 	pr_devel("ib_alloc_device " DIS_STATUS_COMPLETE);
 
-	disdev->ibdev.uverbs_cmd_mask = (1ull);
-	disdev->ibdev.node_type = RDMA_NODE_UNSPECIFIED;
-	disdev->ibdev.phys_port_cnt = 1;
-	disdev->ibdev.num_comp_vectors = 1;
-	disdev->ibdev.local_dma_lkey = 1234;
-	disdev->ibdev.node_guid = 1234;
-	disdev->ibdev.dev.parent = dev;
+	disdev->ibdev.uverbs_cmd_mask	= (1ull);
+	disdev->ibdev.node_type 		= RDMA_NODE_UNSPECIFIED;
+	disdev->ibdev.phys_port_cnt 	= 1;
+	disdev->ibdev.num_comp_vectors	= 1;
+	disdev->ibdev.local_dma_lkey 	= 1234;
+	disdev->ibdev.node_guid 		= 1234;
+	disdev->ibdev.dev.parent 		= dev;
 	strlcpy(disdev->ibdev.name, "dis", IB_DEVICE_NAME_MAX);
 	ib_set_device_ops(&(disdev->ibdev), &disdevops);
 

@@ -10,30 +10,30 @@ int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
 {
     pr_devel(DIS_STATUS_START);
 
-	props->fw_ver               = 1;
-	props->sys_image_guid       = 1234;
-	props->max_mr_size          = ~0ull;
-	props->page_size_cap        = 0xffff000; // 4KB-128MB
-	props->vendor_id            = 1234;
-	props->vendor_part_id       = 1234;
-	props->hw_ver               = 1;
-	props->max_qp               = 1234;
-	props->max_qp_wr            = 1234;
-	props->device_cap_flags     = IB_DEVICE_PORT_ACTIVE_EVENT;
-    props->device_cap_flags     |= IB_DEVICE_LOCAL_DMA_LKEY; 
-    props->device_cap_flags     |= IB_DEVICE_MEM_MGT_EXTENSIONS; // Support FR
-	props->max_send_sge         = 1234;
-	props->max_recv_sge         = 1234;
-	props->max_sge_rd           = 1;
-	props->max_cq               = 1234;
-	props->max_cqe              = 1234;
-	props->max_mr               = 1234;
-	props->max_pd               = 1234;
-	props->max_qp_rd_atom       = 0;
-	props->max_qp_init_rd_atom  = 0;
-	props->atomic_cap           = IB_ATOMIC_NONE;
-	props->max_pkeys            = 1;
-	props->local_ca_ack_delay   = 1;
+    props->fw_ver               = 1;
+    props->sys_image_guid       = 1234;
+    props->max_mr_size          = ~0ull;
+    props->page_size_cap        = 0xffff000; // 4KB-128MB
+    props->vendor_id            = 1234;
+    props->vendor_part_id       = 1234;
+    props->hw_ver               = 1;
+    props->max_qp               = 1234;
+    props->max_qp_wr            = 1234;
+    props->device_cap_flags     = IB_DEVICE_PORT_ACTIVE_EVENT;
+    props->device_cap_flags     |= IB_DEVICE_LOCAL_DMA_LKEY;
+    props->device_cap_flags     |= IB_DEVICE_MEM_MGT_EXTENSIONS;  // Support FR
+    props->max_send_sge         = 1234;
+    props->max_recv_sge         = 1234;
+    props->max_sge_rd           = 1;
+    props->max_cq               = 1234;
+    props->max_cqe              = 1234;
+    props->max_mr               = 1234;
+    props->max_pd               = 1234;
+    props->max_qp_rd_atom       = 0;
+    props->max_qp_init_rd_atom  = 0;
+    props->atomic_cap           = IB_ATOMIC_NONE;
+    props->max_pkeys            = 1;
+    props->local_ca_ack_delay   = 1;
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -47,16 +47,16 @@ int dis_query_port(struct ib_device *ibdev, u8 port,
     // props->port_cap_flags   = IB_PORT_REINIT_SUP;
     // props->port_cap_flags   |= IB_PORT_DEVICE_MGMT_SUP;
     // props->port_cap_flags   |= IB_PORT_VENDOR_CLASS_SUP;
-	props->gid_tbl_len      = 1;
-	props->pkey_tbl_len     = 1;
-	props->max_msg_sz       = 0x80000000;
+    props->gid_tbl_len      = 1;
+    props->pkey_tbl_len     = 1;
+    props->max_msg_sz       = 0x80000000;
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 int dis_get_port_immutable(struct ib_device *ibdev, u8 port_num,
-				            struct ib_port_immutable *immutable)
+                            struct ib_port_immutable *immutable)
 {
     pr_devel(DIS_STATUS_START);
     //int ret;
@@ -67,18 +67,18 @@ int dis_get_port_immutable(struct ib_device *ibdev, u8 port_num,
     // }
     
     // TODO: Replace hard-coded values with result from dis_query_port
-    immutable->pkey_tbl_len = 1;
-	immutable->gid_tbl_len = 1;
-	immutable->core_cap_flags = RDMA_CORE_PORT_RAW_PACKET;
+    immutable->pkey_tbl_len     = 1;
+    immutable->gid_tbl_len      = 1;
+    immutable->core_cap_flags   = RDMA_CORE_PORT_RAW_PACKET;
     
     // This has to be 0 in order to not trigger the verify_immutable check
-	immutable->max_mad_size = 0; //IB_MGMT_MAD_SIZE;
+    immutable->max_mad_size = 0; //IB_MGMT_MAD_SIZE;
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 int dis_query_pkey(struct ib_device *ibdev, u8 port, u16 index,
-			        u16 *pkey)
+                    u16 *pkey)
 {
     pr_devel(DIS_STATUS_START);
 
@@ -118,9 +118,9 @@ struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access)
     pr_devel(DIS_STATUS_START);
 
     dismr = kzalloc(sizeof(struct dis_mr), GFP_KERNEL);
-	if (!dismr) {
+    if (!dismr) {
         dev_err(&ibdev->dev, "dis_get_dma_mr " DIS_STATUS_FAIL);
-		return ERR_PTR(-1);
+        return ERR_PTR(-1);
     }
 
     dismr->disdev = disdev;
@@ -157,12 +157,12 @@ int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *init_attr,
     ibcq->cqe       = init_attr->cqe;
     discq->disdev   = disdev;
 
-    discq->queue.max_elem = init_attr->cqe;
-    discq->queue.elem_size = sizeof(struct dis_cqe);
+    discq->queue.max_elem   = init_attr->cqe;
+    discq->queue.elem_size  = sizeof(struct dis_cqe);
     ret = dis_create_queue(&discq->queue);
     if (ret) {
         dev_err(&ibdev->dev, "Create queue: " DIS_STATUS_FAIL);
-		return -42;
+        return -42;
     }
 
     pr_devel(DIS_STATUS_COMPLETE);
@@ -214,9 +214,9 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
     pr_devel(DIS_STATUS_START);
 
     disqp = kzalloc(sizeof(struct dis_qp), GFP_KERNEL);
-	if (!disqp) {
+    if (!disqp) {
         dev_err(&ibdev->dev, "kzalloc disqp: " DIS_STATUS_FAIL);
-		return ERR_PTR(-1);
+        return ERR_PTR(-1);
     }
 
     disqp->disdev               = disdev;
@@ -253,13 +253,13 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
     ret = dis_create_queue(&disqp->sq.queue);
     if (ret) {
         dev_err(&ibdev->dev, "Create Send Queue: " DIS_STATUS_FAIL);
-		goto sq_err;
+        goto sq_err;
     }
 
     ret = dis_create_queue(&disqp->rq.queue);
     if (ret) {
         dev_err(&ibdev->dev, "Create Receive Queue: " DIS_STATUS_FAIL);
-		goto rq_err;
+        goto rq_err;
     }
     
     return &disqp->ibqp;
@@ -273,7 +273,7 @@ sq_err:
     pr_devel("Free QP: " DIS_STATUS_COMPLETE);
 
     pr_devel(DIS_STATUS_FAIL);
-    return ERR_PTR(-1);;
+    return ERR_PTR(-1);
 }
 
 int dis_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
