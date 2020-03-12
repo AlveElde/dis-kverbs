@@ -1,34 +1,30 @@
-obj-m += dis_bus.o dis_driver.o dis_device.o
+obj-m += src/
 
-SRC := ./src
-dis_bus-objs := $(SRC)/dis_bus.o
-dis_driver-objs := $(SRC)/dis_driver.o $(SRC)/dis_verbs.o $(SRC)/dis_queue.o
-dis_device-objs := $(SRC)/dis_device.o
-
-EXTRA_CFLAGS += -DDEBUG
+KVERBS_SRC 		:= ./src
+BUS_SRC 		:= $(KVERBS_SRC)/bus
+DRV_SRC 		:= $(KVERBS_SRC)/driver
+DEV_SRC 		:= $(KVERBS_SRC)/device
+KERNEL_BUILD 	:= /lib/modules/$(shell uname -r)/build
 
 all:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+	make -C $(KERNEL_BUILD) M=$(PWD) modules
 
-install:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules_install
+# install:
+# 	make -C $(KERNEL_BUILD) M=$(PWD) M=$(PWD) modules_install
 
 clean:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	make -C $(KERNEL_BUILD) M=$(PWD) clean
 
 ins: all
 	sudo dmesg -C
-	sudo insmod dis_bus.ko
-	sudo insmod dis_driver.ko
-	sudo insmod dis_device.ko
-	dmesg
+	sudo insmod $(BUS_SRC)/dis_bus_mod.ko
+	sudo insmod $(DRV_SRC)/dis_driver_mod.ko
+	sudo insmod $(DEV_SRC)/dis_device_mod.ko
+	dmesg -t
 
-rm: all
-	sudo rmmod dis_device.ko
-	sudo rmmod dis_driver.ko
-	sudo rmmod dis_bus.ko
-	dmesg
+rm:
+	sudo rmmod $(DEV_SRC)/dis_device_mod.ko
+	sudo rmmod $(DRV_SRC)/dis_driver_mod.ko
+	sudo rmmod $(BUS_SRC)/dis_bus_mod.ko
+	dmesg -t
 
-test: ins rm
-
-retest: clean all test

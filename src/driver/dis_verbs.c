@@ -324,6 +324,7 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 
         disqp->state = attr->qp_state;
 	}
+
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
@@ -362,7 +363,7 @@ int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
                     const struct ib_recv_wr **bad_wr)
 {
     pr_devel(DIS_STATUS_START);
-
+    
     pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
