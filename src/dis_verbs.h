@@ -104,10 +104,10 @@ static inline struct dis_ucontext *to_dis_ucontext(struct ib_ucontext *ibucontex
 }
 
 // Device verbs.
-int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
+int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *dev_attr,
                      struct ib_udata *udata);
 int dis_query_port(struct ib_device *ibdev, u8 port,
-                   struct ib_port_attr *props);
+                   struct ib_port_attr *port_attr);
 int dis_get_port_immutable(struct ib_device *ibdev, u8 port_num,
 				   struct ib_port_immutable *immutable);
 int dis_query_pkey(struct ib_device *ibdev, u8 port, u16 index,

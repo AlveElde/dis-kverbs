@@ -5,51 +5,62 @@
 
 static int glbal_qpn = 10;
 
-int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *props,
+int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *dev_attr,
                         struct ib_udata *udata)
 {
     pr_devel(DIS_STATUS_START);
 
-    props->fw_ver               = 1;
-    props->sys_image_guid       = 1234;
-    props->max_mr_size          = ~0ull;
-    props->page_size_cap        = 0xffff000; // 4KB-128MB
-    props->vendor_id            = 1234;
-    props->vendor_part_id       = 1234;
-    props->hw_ver               = 1;
-    props->max_qp               = 1234;
-    props->max_qp_wr            = 1234;
-    props->device_cap_flags     = IB_DEVICE_PORT_ACTIVE_EVENT;
-    props->device_cap_flags     |= IB_DEVICE_LOCAL_DMA_LKEY;
-    props->device_cap_flags     |= IB_DEVICE_MEM_MGT_EXTENSIONS;  // Support FR
-    props->max_send_sge         = 1234;
-    props->max_recv_sge         = 1234;
-    props->max_sge_rd           = 1;
-    props->max_cq               = 1234;
-    props->max_cqe              = 1234;
-    props->max_mr               = 1234;
-    props->max_pd               = 1234;
-    props->max_qp_rd_atom       = 0;
-    props->max_qp_init_rd_atom  = 0;
-    props->atomic_cap           = IB_ATOMIC_NONE;
-    props->max_pkeys            = 1;
-    props->local_ca_ack_delay   = 1;
+    dev_attr->fw_ver               = 1;
+    dev_attr->sys_image_guid       = 1234;
+    dev_attr->max_mr_size          = ~0ull;
+    dev_attr->page_size_cap        = 0xffff000; // 4KB-128MB
+    dev_attr->vendor_id            = 1234;
+    dev_attr->vendor_part_id       = 1234;
+    dev_attr->hw_ver               = 1;
+    dev_attr->max_qp               = 1234;
+    dev_attr->max_qp_wr            = 1234;
+    dev_attr->device_cap_flags     = IB_DEVICE_PORT_ACTIVE_EVENT;
+    dev_attr->device_cap_flags     |= IB_DEVICE_LOCAL_DMA_LKEY;
+    dev_attr->device_cap_flags     |= IB_DEVICE_MEM_MGT_EXTENSIONS;  // Support FR
+    dev_attr->max_send_sge         = 1234;
+    dev_attr->max_recv_sge         = 1234;
+    dev_attr->max_sge_rd           = 1;
+    dev_attr->max_cq               = 1234;
+    dev_attr->max_cqe              = 1234;
+    dev_attr->max_mr               = 1234;
+    dev_attr->max_pd               = 1234;
+    dev_attr->max_qp_rd_atom       = 0;
+    dev_attr->max_qp_init_rd_atom  = 0;
+    dev_attr->atomic_cap           = IB_ATOMIC_NONE;
+    dev_attr->max_pkeys            = 1;
+    dev_attr->local_ca_ack_delay   = 1;
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 int dis_query_port(struct ib_device *ibdev, u8 port,
-                    struct ib_port_attr *props)
+                    struct ib_port_attr *port_attr)
 {
     pr_devel(DIS_STATUS_START);
-    //props->port_cap_flags   = IB_PORT_CM_SUP;
-    // props->port_cap_flags   = IB_PORT_REINIT_SUP;
-    // props->port_cap_flags   |= IB_PORT_DEVICE_MGMT_SUP;
-    // props->port_cap_flags   |= IB_PORT_VENDOR_CLASS_SUP;
-    props->gid_tbl_len      = 1;
-    props->pkey_tbl_len     = 1;
-    props->max_msg_sz       = 0x80000000;
+    //port_attr->port_cap_flags   = IB_PORT_CM_SUP;
+    // port_attr->port_cap_flags   = IB_PORT_REINIT_SUP;
+    // port_attr->port_cap_flags   |= IB_PORT_DEVICE_MGMT_SUP;
+    // port_attr->port_cap_flags   |= IB_PORT_VENDOR_CLASS_SUP;
+    port_attr->gid_tbl_len      = 1;
+    port_attr->pkey_tbl_len     = 1;
+	port_attr->max_vl_num       = 1;
+    port_attr->max_msg_sz       = 0x80000000;
+    port_attr->max_mtu          = 4096;
+	port_attr->active_mtu       = 4096;
+	port_attr->lid              = 0;
+	port_attr->sm_lid           = 0;
+	port_attr->bad_pkey_cntr    = 0;
+	port_attr->qkey_viol_cntr   = 0;
+	port_attr->lmc              = 0;
+	port_attr->sm_sl            = 0;
+	port_attr->subnet_timeout   = 0;
+	port_attr->init_type_reply  = 0;
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -289,10 +300,32 @@ int dis_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
                     int attr_mask, struct ib_udata *udata)
 {
+    struct dis_qp *disqp = to_dis_qp(ibqp);
     pr_devel(DIS_STATUS_START);
 
-    pr_devel(DIS_STATUS_FAIL);
-    return -42;
+    if (attr_mask & IB_QP_STATE) {
+		switch (attr->qp_state) {
+		case IB_QPS_RESET:
+			pr_devel("Modify QP state: RESET");
+			break;
+		case IB_QPS_INIT:
+			pr_devel("Modify QP state: INIT");
+			break;
+		case IB_QPS_RTR:
+			pr_devel("Modify QP state: RTR");
+			break;
+		case IB_QPS_RTS:
+			pr_devel("Modify QP state: RTS");
+			break;
+		default:
+			pr_devel(DIS_STATUS_FAIL);
+			return -42;
+		}
+
+        disqp->state = attr->qp_state;
+	}
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
 }
 
 int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)

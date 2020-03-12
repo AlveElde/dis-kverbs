@@ -16,15 +16,14 @@ install:
 clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 
-ins: 
+ins: all
 	sudo dmesg -C
 	sudo insmod dis_bus.ko
 	sudo insmod dis_driver.ko
 	sudo insmod dis_device.ko
 	dmesg
 
-rm: 
-	sudo dmesg -C
+rm: all
 	sudo rmmod dis_device.ko
 	sudo rmmod dis_driver.ko
 	sudo rmmod dis_bus.ko
