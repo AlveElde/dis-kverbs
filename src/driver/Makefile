@@ -5,3 +5,4 @@ KVERBS_SRC 	:= $(obj)/..
 
 EXTRA_CFLAGS += -DDEBUG
 EXTRA_CFLAGS += -I$(KVERBS_SRC)/common
+EXTRA_CFLAGS += -I$(KVERBS_SRC)/scilib_if

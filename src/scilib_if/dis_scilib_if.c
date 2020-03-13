@@ -30,14 +30,8 @@ static int __init dis_scilib_if_init(void)
     ret = SCILInit(SCIL_INIT_FLAGS);
     if(ret != SCI_ERR_OK) {
         pr_devel(DIS_STATUS_FAIL);
-        return 0;
+        return -1;
     }
-
-    // if(is_responder) {
-    //     test_responder(local_adapter_no, remote_node_id);
-    // } else {
-    //     test_requester(local_adapter_no, remote_node_id);
-    // }
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;

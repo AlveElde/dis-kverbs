@@ -260,28 +260,9 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
 
     disqp->rq.queue.max_elem    = disqp->rq.max_wqe;
     disqp->rq.queue.elem_size   = sizeof(struct dis_wqe);
-
-    ret = dis_create_queue(&disqp->sq.queue);
-    if (ret) {
-        dev_err(&ibdev->dev, "Create Send Queue: " DIS_STATUS_FAIL);
-        goto sq_err;
-    }
-
-    ret = dis_create_queue(&disqp->rq.queue);
-    if (ret) {
-        dev_err(&ibdev->dev, "Create Receive Queue: " DIS_STATUS_FAIL);
-        goto rq_err;
-    }
     
     return &disqp->ibqp;
 
-rq_err:
-    dis_destroy_queue(&disqp->sq.queue);
-    pr_devel("Destroy SQ: " DIS_STATUS_COMPLETE);
-
-sq_err:
-    kfree(disqp);
-    pr_devel("Free QP: " DIS_STATUS_COMPLETE);
 
     pr_devel(DIS_STATUS_FAIL);
     return ERR_PTR(-1);
@@ -337,11 +318,11 @@ int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
 
     pr_devel(DIS_STATUS_START);
 
-    dis_destroy_queue(&disqp->rq.queue);
-    pr_devel("Destroy RQ: " DIS_STATUS_COMPLETE);
+    // dis_destroy_queue(&disqp->rq.queue);
+    // pr_devel("Destroy RQ: " DIS_STATUS_COMPLETE);
 
-    dis_destroy_queue(&disqp->sq.queue);
-    pr_devel("Destroy SQ: " DIS_STATUS_COMPLETE);
+    // dis_destroy_queue(&disqp->sq.queue);
+    // pr_devel("Destroy SQ: " DIS_STATUS_COMPLETE);
 
     kfree(disqp);
     pr_devel("Free QP: " DIS_STATUS_COMPLETE);
