@@ -4,7 +4,7 @@ SRC 			:= ./src
 BUS_SRC 		:= $(SRC)/bus
 DRV_SRC 		:= $(SRC)/driver
 DEV_SRC 		:= $(SRC)/device
-SCI_IF_SRC 		:= $(SRC)/scilib_if
+SCI_IF_SRC 		:= $(SRC)/sci_if
 SCI_SRC			:= /home/alve/scilib/GENIF/LINUX
 KERNEL_BUILD 	:= /lib/modules/$(shell uname -r)/build
 
@@ -24,7 +24,7 @@ clean:
 ins: all
 	sudo dmesg -C
 	sudo insmod $(SCI_SRC)/dis_msq.ko
-	sudo insmod $(SCI_IF_SRC)/dis_scilib_if_mod.ko local_adapter_no=0 remote_node_id=4 is_responder=N
+	sudo insmod $(SCI_IF_SRC)/dis_sci_if_mod.ko local_adapter_no=0 remote_node_id=4
 	sudo insmod $(BUS_SRC)/dis_bus_mod.ko
 	sudo insmod $(DRV_SRC)/dis_driver_mod.ko
 	sudo insmod $(DEV_SRC)/dis_device_mod.ko
@@ -34,7 +34,7 @@ rm:
 	sudo rmmod dis_device_mod.ko
 	sudo rmmod dis_driver_mod.ko
 	sudo rmmod dis_bus_mod.ko
-	sudo rmmod dis_scilib_if_mod.ko
+	sudo rmmod dis_sci_if_mod.ko
 	sudo rmmod dis_msq.ko
 	dmesg -t
 

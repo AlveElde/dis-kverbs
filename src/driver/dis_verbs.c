@@ -5,6 +5,11 @@
 
 static int glbal_qpn = 10;
 
+extern int sci_if_create_msq(struct dis_msq *msq, int retry_max);
+extern int sci_if_connect_msq(struct dis_msq *msq, int retry_max);
+extern int sci_if_send_request(struct dis_msq_msg *msg);
+extern int sci_if_receive_request(struct dis_msq_msg *msg, int retry_max);
+
 int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *dev_attr,
                         struct ib_udata *udata)
 {
@@ -168,13 +173,13 @@ int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *init_attr,
     ibcq->cqe       = init_attr->cqe;
     discq->disdev   = disdev;
 
-    discq->queue.max_elem   = init_attr->cqe;
-    discq->queue.elem_size  = sizeof(struct dis_cqe);
-    ret = dis_create_queue(&discq->queue);
-    if (ret) {
-        dev_err(&ibdev->dev, "Create queue: " DIS_STATUS_FAIL);
-        return -42;
-    }
+    // discq->queue.max_elem   = init_attr->cqe;
+    // discq->queue.elem_size  = sizeof(struct dis_cqe);
+    // ret = dis_create_queue(&discq->queue);
+    // if (ret) {
+    //     dev_err(&ibdev->dev, "Create queue: " DIS_STATUS_FAIL);
+    //     return -42;
+    // }
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -208,7 +213,7 @@ void dis_destroy_cq(struct ib_cq *ibcq, struct ib_udata *udata)
 
     pr_devel(DIS_STATUS_START);
 
-    dis_destroy_queue(&discq->queue);
+    // dis_destroy_queue(&discq->queue);
 
     pr_devel(DIS_STATUS_COMPLETE);
 }
@@ -245,25 +250,35 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
     disqp->ibqp.qp_type         = init_attr->qp_type;
     disqp->ibqp.qp_num          = disqp->qpn;
 
+    /* Set up Send Queue */
     disqp->sq.discq             = to_dis_cq(init_attr->send_cq);
     disqp->sq.max_wqe           = init_attr->cap.max_send_wr;
     disqp->sq.max_sge           = init_attr->cap.max_send_sge;
     disqp->sq.max_inline        = init_attr->cap.max_inline_data;
 
-    disqp->sq.queue.max_elem    = disqp->sq.max_wqe;
-    disqp->sq.queue.elem_size   = sizeof(struct dis_wqe);
+    disqp->sq.dismsq.msq            = NULL;
+    disqp->sq.dismsq.lmsqId         = 444;
+    disqp->sq.dismsq.rmsqId         = 444;
+    disqp->sq.dismsq.maxMsgCount    = 16;
+    disqp->sq.dismsq.maxMsgSize     = 128;
+    disqp->sq.dismsq.timeout        = 1234;
+    disqp->sq.dismsq.flags          = 0;
+    // ret = sci_if_connect_msq(&disqp->sq.dismsq, 10);
+    // if(ret) {
+    //     goto dis_connect_msq_err;
+    // }
 
+    /* Set up Receive Queue */
     disqp->rq.discq             = to_dis_cq(init_attr->recv_cq);
     disqp->rq.max_wqe           = init_attr->cap.max_recv_wr;
     disqp->rq.max_sge           = init_attr->cap.max_recv_sge;
     disqp->rq.max_inline        = init_attr->cap.max_inline_data;
-
-    disqp->rq.queue.max_elem    = disqp->rq.max_wqe;
-    disqp->rq.queue.elem_size   = sizeof(struct dis_wqe);
     
     return &disqp->ibqp;
 
+    kfree(disqp);
 
+dis_connect_msq_err:
     pr_devel(DIS_STATUS_FAIL);
     return ERR_PTR(-1);
 }

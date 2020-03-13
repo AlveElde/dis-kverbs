@@ -1,5 +1,5 @@
-obj-m += dis_scilib_if_mod.o
-dis_scilib_if_mod-objs := dis_scilib_if.o dis_msq.o
+obj-m += dis_sci_if_mod.o
+dis_sci_if_mod-objs := dis_sci_if.o
 
 KVERBS_SRC 		:= $(obj)/..
 DIS_SRC			:= /opt/DIS

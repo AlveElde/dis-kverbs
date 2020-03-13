@@ -4,7 +4,7 @@
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_mad.h>
 
-#include "dis_queue.h"
+#include "dis_sci_if.h"
 
 // Provider-specific structures.
 struct dis_dev {
@@ -27,7 +27,7 @@ struct dis_wqe {
 
 struct dis_wq {
     struct dis_cq       *discq;
-    struct dis_queue    queue;
+    struct dis_msq      dismsq;
     u32                 max_wqe;
     u32                 max_sge;
     u32                 max_inline;
@@ -53,7 +53,7 @@ struct dis_cqe {
 struct dis_cq {
 	struct ib_cq        ibcq;
     struct dis_dev      *disdev;
-    struct dis_queue    queue;
+    struct dis_msq      dismsq;
 };
 
 struct dis_mr {
