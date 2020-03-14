@@ -5,12 +5,13 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 
-#include "dis_sci_if.h"
+#include "sci_if.h"
 
 MODULE_DESCRIPTION("SCI Lib Interface");
 MODULE_AUTHOR("Alve Elde");
 MODULE_LICENSE("GPL");
 
+// static unsigned int msq_id_enumerator   = 100;
 static unsigned int local_adapter_no    = 99;
 static unsigned int remote_node_id      = 99;
 static bool is_initiator                = true;
@@ -26,21 +27,21 @@ MODULE_PARM_DESC(is_initiator, "");
 #define SCIL_INIT_FLAGS 0
 #define SCIL_EXIT_FLAGS 0
 
-int sci_if_create_msq(struct dis_msq *msq, int retry_max)
+int sci_if_create_msq(struct sci_if_msq_duplex *msq, int retry_max)
 {
     int i = 0;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
     for(i = 0; i < retry_max; i++) {
-        err = SCILCreateMsgQueue(&(msq->msq), 
-                                    local_adapter_no, 
+        err = SCILCreateMsgQueue(&(msq->incoming_msq),
+                                    local_adapter_no,
                                     remote_node_id, 
-                                    msq->lmsqId,
-                                    msq->rmsqId, 
-                                    msq->maxMsgCount, 
-                                    msq->maxMsgSize, 
-                                    msq->timeout, 
+                                    msq->lmsq_id,
+                                    msq->rmsq_id,
+                                    msq->max_msg_count,
+                                    msq->max_msg_size,
+                                    msq->timeout,
                                     msq->flags);
         switch (err)
         {
@@ -67,20 +68,28 @@ int sci_if_create_msq(struct dis_msq *msq, int retry_max)
 }
 EXPORT_SYMBOL(sci_if_create_msq);
 
-int sci_if_connect_msq(struct dis_msq *msq, int retry_max)
+void sci_if_remove_msq(struct sci_if_msq_duplex *msq)
+{
+    pr_devel(DIS_STATUS_START);
+    SCILRemoveMsgQueue(&msq->incoming_msq, 0);
+    pr_devel(DIS_STATUS_COMPLETE);
+}
+EXPORT_SYMBOL(sci_if_remove_msq);
+
+int sci_if_connect_msq(struct sci_if_msq_duplex *msq, int retry_max)
 {
     int i = 0;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
     
     for(i = 0; i < retry_max; i++) {
-        err = SCILConnectMsgQueue(&(msq->msq), 
+        err = SCILConnectMsgQueue(&(msq->outgoing_msq), 
                                     local_adapter_no, 
                                     remote_node_id, 
-                                    msq->lmsqId,
-                                    msq->rmsqId, 
-                                    msq->maxMsgCount, 
-                                    msq->maxMsgSize, 
+                                    msq->lmsq_id,
+                                    msq->rmsq_id, 
+                                    msq->max_msg_count, 
+                                    msq->max_msg_size, 
                                     msq->timeout, 
                                     msq->flags);
         switch (err)
@@ -108,13 +117,57 @@ int sci_if_connect_msq(struct dis_msq *msq, int retry_max)
 }
 EXPORT_SYMBOL(sci_if_connect_msq);
 
+void sci_if_disconnect_msq(struct sci_if_msq_duplex *msq)
+{
+    pr_devel(DIS_STATUS_START);
+    SCILDisconnectMsgQueue(&msq->outgoing_msq, 0);
+    pr_devel(DIS_STATUS_COMPLETE);
+}
+EXPORT_SYMBOL(sci_if_disconnect_msq);
 
-int sci_if_send_request(struct dis_msq_msg *msg)
+int sci_if_handshake_msq(struct sci_if_msq_duplex *msq, int retry_max) 
+{
+    int ret;
+
+    if(is_initiator) {
+        ret = sci_if_create_msq(msq, retry_max);
+        if(ret) {
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+
+        ret = sci_if_connect_msq(msq, retry_max);
+        if(ret) {
+            pr_devel(DIS_STATUS_FAIL);
+            sci_if_remove_msq(msq);
+            return -42;
+        }
+    } else {
+        ret = sci_if_connect_msq(msq, retry_max);
+        if(ret) {
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+
+        ret = sci_if_create_msq(msq, retry_max);
+        if(ret) {
+            pr_devel(DIS_STATUS_FAIL);
+            sci_if_disconnect_msq(msq);
+            return -42;
+        }
+    }
+
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
+}
+EXPORT_SYMBOL(sci_if_handshake_msq);
+
+int sci_if_send_request(struct sci_if_msg *msg)
 {
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
-    err = SCILSendMsg(*(msg->msq),
+    err = SCILSendMsg(*(msg->outgoing_msq),
                         msg->msg,
                         msg->size,
                         msg->free,
@@ -137,14 +190,14 @@ int sci_if_send_request(struct dis_msq_msg *msg)
 }
 EXPORT_SYMBOL(sci_if_send_request);
 
-int sci_if_receive_request(struct dis_msq_msg *msg, int retry_max)
+int sci_if_receive_request(struct sci_if_msg *msg, int retry_max)
 {
     int i;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
     for(i = 0; i < retry_max; i++) {
-        err = SCILReceiveMsg(*(msg->msq),
+        err = SCILReceiveMsg(*(msg->incoming_msq),
                             msg->msg,
                             msg->size,
                             msg->free,
@@ -178,7 +231,7 @@ int sci_if_receive_request(struct dis_msq_msg *msg, int retry_max)
 }
 EXPORT_SYMBOL(sci_if_receive_request);
 
-static int __init dis_sci_if_init(void)
+static int __init sci_if_init(void)
 {
     sci_error_t ret;
     pr_devel(DIS_STATUS_START);
@@ -193,7 +246,7 @@ static int __init dis_sci_if_init(void)
     return 0;
 }
 
-static void __exit dis_sci_if_exit(void)
+static void __exit sci_if_exit(void)
 {
     sci_error_t ret;
     pr_devel(DIS_STATUS_START);
@@ -207,5 +260,5 @@ static void __exit dis_sci_if_exit(void)
     pr_devel(DIS_STATUS_COMPLETE);
 }
 
-module_init(dis_sci_if_init);
-module_exit(dis_sci_if_exit);
+module_init(sci_if_init);
+module_exit(sci_if_exit);
