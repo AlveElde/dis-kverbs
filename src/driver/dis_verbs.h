@@ -1,10 +1,14 @@
 #ifndef __DIS_VERBS_H__
 #define __DIS_VERBS_H__
 
+#include <linux/kthread.h>
+#include <linux/wait.h>
+
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_mad.h>
 
-#include "sci_if.h"
+
+#include "../sci_if/sci_if_lib.h"
 
 // Provider-specific structures.
 struct dis_dev {
@@ -25,9 +29,19 @@ struct dis_wqe {
     int wqe_num;
 };
 
+enum dis_thread_flag {
+    SCI_IF_POST_SEND    = 0,
+    SCI_IF_POST_RECV    = 1,
+    SCI_IF_EMPTY        = 2,
+    SCI_IF_EXIT         = 3
+};
+
 struct dis_wq {
     struct dis_cq       *discq;
-    struct sci_if_msq_duplex      dismsq;
+    struct sci_if_msq   dismsq;
+    struct task_struct  *thread;
+    wait_queue_head_t   wait_queue;
+    enum dis_thread_flag     thread_flag;
     u32                 max_wqe;
     u32                 max_sge;
     u32                 max_inline;
@@ -43,7 +57,7 @@ struct dis_qp {
     enum ib_qp_state    state;
     int                 mtu;
     int                 qpn;
-    void                (*event_handler)(struct ib_event *, void *);
+    void (*event_handler)(struct ib_event *, void *);
 };
 
 struct dis_cqe {

@@ -5,13 +5,17 @@
 
 static int glbal_qpn = 10;
 
-extern int sci_if_handshake_msq(struct sci_if_msq_duplex *msq, int retry_max);
-extern int sci_if_create_msq(struct sci_if_msq_duplex *msq, int retry_max);
-extern void sci_if_remove_msq(struct sci_if_msq_duplex *msq);
-extern int sci_if_connect_msq(struct sci_if_msq_duplex *msq, int retry_max);
-extern void sci_if_disconnect_msq(struct sci_if_msq_duplex *msq);
-extern int sci_if_send_request(struct sci_if_msg *msg);
-extern int sci_if_receive_request(struct sci_if_msg *msg, int retry_max);
+// extern int sci_if_handshake_msq(struct sci_if_msq_duplex *msq, int retry_max);
+// extern int sci_if_create_msq(struct sci_if_msq_duplex *msq, int retry_max);
+// extern void sci_if_remove_msq(struct sci_if_msq_duplex *msq);
+// extern int sci_if_connect_msq(struct sci_if_msq_duplex *msq, int retry_max);
+// extern void sci_if_disconnect_msq(struct sci_if_msq_duplex *msq);
+// extern int sci_if_send_request(struct sci_if_msg *msg);
+// extern int sci_if_receive_request(struct sci_if_msg *msg, int retry_max);
+
+extern void sci_if_sq_signal(struct dis_qp *disqp);
+extern int sci_if_sq_init(struct dis_qp *disqp);
+
 
 int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *dev_attr,
                         struct ib_udata *udata)
@@ -252,13 +256,11 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
     disqp->ibqp.qp_type         = init_attr->qp_type;
     disqp->ibqp.qp_num          = disqp->qpn;
 
-    /* Set up Send Queue */
     disqp->sq.discq             = to_dis_cq(init_attr->send_cq);
     disqp->sq.max_wqe           = init_attr->cap.max_send_wr;
     disqp->sq.max_sge           = init_attr->cap.max_send_sge;
     disqp->sq.max_inline        = init_attr->cap.max_inline_data;
 
-    /* Set up Receive Queue */
     disqp->rq.discq             = to_dis_cq(init_attr->recv_cq);
     disqp->rq.max_wqe           = init_attr->cap.max_recv_wr;
     disqp->rq.max_sge           = init_attr->cap.max_recv_sge;
@@ -292,13 +294,19 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 
 		case IB_QPS_INIT:
 			pr_devel("Modify QP state: INIT");
+
+            // ret = sci_if_init_qp(&disqp);
+            // if(ret) {
+
+            // }
+
 			break;
 
 		case IB_QPS_RTR:
 			pr_devel("Modify QP state: RTR");
 
-            disqp->rq.dismsq.incoming_msq   = NULL;
-            disqp->rq.dismsq.outgoing_msq   = NULL;
+            // disqp->rq.dismsq.incoming_msq   = NULL;
+            // disqp->rq.dismsq.outgoing_msq   = NULL;
             disqp->rq.dismsq.lmsq_id        = 444;
             disqp->rq.dismsq.rmsq_id        = 444;
             disqp->rq.dismsq.max_msg_count  = 16;
@@ -306,17 +314,23 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
             disqp->rq.dismsq.timeout        = 1234;
             disqp->rq.dismsq.flags          = 0;
 
-            ret = sci_if_handshake_msq(&disqp->rq.dismsq, SCI_IF_TIMEOUT_SEC);
-            if(ret) {
-                goto rtr_handshake_err;
-            }
+            // ret = sci_if_init_rq(&disqp)
+            // if(ret) {
+
+            // }
+
+
+            // ret = sci_if_handshake_msq(&disqp->rq.dismsq, SCI_IF_TIMEOUT_SEC);
+            // if(ret) {
+            //     goto rtr_handshake_err;
+            // }
 			break;
 
 		case IB_QPS_RTS:
 			pr_devel("Modify QP state: RTS");
 
-            disqp->sq.dismsq.incoming_msq   = NULL;
-            disqp->sq.dismsq.outgoing_msq   = NULL;
+            // disqp->sq.dismsq.incoming_msq   = NULL;
+            // disqp->sq.dismsq.outgoing_msq   = NULL;
             disqp->sq.dismsq.lmsq_id        = 555;
             disqp->sq.dismsq.rmsq_id        = 555;
             disqp->sq.dismsq.max_msg_count  = 16;
@@ -324,10 +338,16 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
             disqp->sq.dismsq.timeout        = 1234;
             disqp->sq.dismsq.flags          = 0;
 
-            ret = sci_if_handshake_msq(&disqp->sq.dismsq, SCI_IF_TIMEOUT_SEC);
+            disqp->sq.thread_flag   = SCI_IF_EMPTY;
+            ret = sci_if_sq_init(disqp);
             if(ret) {
                 goto rts_handshake_err;
             }
+
+            // ret = sci_if_handshake_msq(&disqp->sq.dismsq, SCI_IF_TIMEOUT_SEC);
+            // if(ret) {
+            //     goto rts_handshake_err;
+            // }
 			break;
 
 		default:
@@ -342,8 +362,8 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
     return 0;
 
 rts_handshake_err:
-    sci_if_disconnect_msq(&disqp->rq.dismsq);
-    sci_if_remove_msq(&disqp->rq.dismsq);
+    // sci_if_disconnect_msq(&disqp->rq.dismsq);
+    // sci_if_remove_msq(&disqp->rq.dismsq);
 
 rtr_handshake_err:
     pr_devel(DIS_STATUS_FAIL);
@@ -358,11 +378,17 @@ int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
 
     pr_devel(DIS_STATUS_START);
 
-    sci_if_disconnect_msq(&disqp->sq.dismsq);
-    sci_if_remove_msq(&disqp->sq.dismsq);
+    // sci_if_disconnect_msq(&disqp->sq.dismsq);
+    // sci_if_remove_msq(&disqp->sq.dismsq);
 
-    sci_if_disconnect_msq(&disqp->rq.dismsq);
-    sci_if_remove_msq(&disqp->rq.dismsq);
+    // sci_if_disconnect_msq(&disqp->rq.dismsq);
+    // sci_if_remove_msq(&disqp->rq.dismsq);
+
+    disqp->sq.thread_flag = SCI_IF_EXIT;
+    sci_if_sq_signal(disqp);
+
+    // disqp->rq.thread_flag = SCI_IF_EXIT;
+    // sci_if_rq_signal(disqp);
 
     kfree(disqp);
     pr_devel("Free QP: " DIS_STATUS_COMPLETE);
@@ -374,8 +400,33 @@ int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
 int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
                     const struct ib_send_wr **bad_wr)
 {
+    int ret, size_free;
+    struct dis_qp *disqp = to_dis_qp(ibqp);
+    struct sci_if_msg msg;
+
     pr_devel(DIS_STATUS_START);
 
+    /* Send message to MSQ */
+    memset(&msg, 0, sizeof(struct sci_if_msg));
+    msg.msq             = &disqp->sq.dismsq.msq;
+    msg.msg             = (void *)(send_wr->sg_list[0].addr);
+    msg.size            = send_wr->sg_list[0].length;
+    msg.free            = &size_free;
+    msg.flags           = 0; //SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
+    
+
+    disqp->sq.thread_flag = SCI_IF_POST_SEND;
+    sci_if_sq_signal(disqp);
+    
+    // ret = sci_if_send_request(&msg);
+    // if(ret) {
+    //     goto send_request_err;
+    // }
+
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
+
+    send_request_err:
     pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
@@ -384,6 +435,9 @@ int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
                     const struct ib_recv_wr **bad_wr)
 {
     pr_devel(DIS_STATUS_START);
+
+    // disqp->rq.thread_flag = SCI_IF_POST_RECV;
+    // sci_if_rq_signal(disqp);
     
     pr_devel(DIS_STATUS_FAIL);
     return -42;

@@ -1,5 +1,5 @@
 obj-m += sci_if_mod.o
-sci_if_mod-objs := sci_if.o
+sci_if_mod-objs := sci_if.o sci_if_lib.o sci_if_send_queue.o
 
 KVERBS_SRC 		:= $(obj)/..
 DIS_SRC			:= /opt/DIS
@@ -9,6 +9,7 @@ OLD_DIS_SRC		:= /home/alve/royn-lts/DIS/src
 
 EXTRA_CFLAGS 			+= -DDEBUG
 EXTRA_CFLAGS 			+= -I$(KVERBS_SRC)/common
+EXTRA_CFLAGS 			+= -I$(KVERBS_SRC)/driver
 
 CPPFLAGS += -D_DIS_KERNEL_ -DOS_IS_LINUX -DCPU_ADDR_IS_64_BIT 	\
             -DLINUX -DUNIX -DCPU_ARCH_IS_X86_64 -DADAPTER_IS_PX \
