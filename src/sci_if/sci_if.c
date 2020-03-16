@@ -52,13 +52,14 @@ int sci_if_create_msq(struct sci_if_msq *msq, int retry_max)
             pr_devel("SCI_ERR_ILLEGAL_PARAMETER: " DIS_STATUS_FAIL);
             return -42;
         case SCI_ERR_NOSPC:
-            pr_devel("SCI_ERR_NOSPC: " DIS_STATUS_FAIL);
-            return -42;
+            pr_devel("SCI_ERR_NOSPC");
+            break;
         default:
-            pr_devel("Sleeping and retrying.. %d", err);
+            pr_devel("Unknown error: %d", err);
         }
 
         if(i + 1 < retry_max) {
+            pr_devel("Sleeping and retrying.. %d", err);
             msleep(1000);
         }
     }
@@ -96,16 +97,17 @@ int sci_if_connect_msq(struct sci_if_msq *msq, int retry_max)
             pr_devel(DIS_STATUS_COMPLETE);
             return 0;
         case SCI_ERR_CONNECTION_REFUSED:
-            pr_devel("SCI_ERR_CONNECTION_REFUSED: " DIS_STATUS_FAIL);
-            return -42;
+            pr_devel("SCI_ERR_CONNECTION_REFUSED");
+            break;
         case SCI_ERR_NO_SUCH_SEGMENT:
-            pr_devel("SCI_ERR_NOSPC: " DIS_STATUS_FAIL);
-            return -42;
+            pr_devel("SCI_ERR_NOSPC");
+            break;
         default:
-            pr_devel("Sleeping and retrying.. %d", err);
+            pr_devel("Unknown error: %d", err);
         }
-
+        
         if(i + 1 < retry_max) {
+            pr_devel("Sleeping and retrying..");
             msleep(1000);
         }
     }

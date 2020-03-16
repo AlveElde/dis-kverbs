@@ -27,6 +27,12 @@ int dis_sq_connect(struct dis_wq *diswq)
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
 
+    // ret = sci_if_connect_msq(diswq->dismsq, DIS_QP_CONNECT_RETRY_MAX);
+    // if (ret) {
+    //     pr_devel(DIS_STATUS_FAIL);
+    //     return -42;
+    // }
+
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
@@ -36,6 +42,12 @@ int dis_rq_connect(struct dis_wq *diswq)
     int ret;
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
+
+    // ret = sci_if_connect_msq(diswq->dismsq, DIS_QP_CONNECT_RETRY_MAX);
+    // if (ret) {
+    //     pr_devel(DIS_STATUS_FAIL);
+    //     return -42;
+    // }
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -50,11 +62,17 @@ int dis_wq_thread(void *diswq_data)
     
     diswq->thread_status = DIS_WQ_RUNNING;
  
-    while(!exit) {
+    while (!exit && !kthread_should_stop()) {
         signal = wait_event_killable(diswq->wait_queue,
-                                        diswq->thread_flag != DIS_WQ_EMPTY);
-        if(signal) {
+                                        diswq->thread_flag != DIS_WQ_EMPTY ||
+                                        kthread_should_stop());
+        if (signal) {
             pr_devel("Kill signal received, exiting!");
+            break;
+        }
+
+        if (kthread_should_stop()) {
+            pr_devel("Kernel thread should stop, exiting!");
             break;
         }
 
@@ -63,6 +81,15 @@ int dis_wq_thread(void *diswq_data)
         case DIS_WQ_POST_SEND:
             pr_devel("Thread flag: DIS_WQ_POST_SEND");
             ret = dis_sqe_execute(diswq);
+            if(ret) {
+                pr_devel(DIS_STATUS_FAIL);
+                exit = true;
+            }
+            break;
+
+        case DIS_WQ_CONNECT_SQ:
+            pr_devel("Thread flag: DIS_WQ_CONNECT_SQ");
+            ret = dis_sq_connect(diswq);
             if(ret) {
                 pr_devel(DIS_STATUS_FAIL);
                 exit = true;
@@ -95,7 +122,7 @@ int dis_wq_thread(void *diswq_data)
     diswq->thread_flag      = DIS_WQ_EMPTY;
     diswq->thread_status    = DIS_WQ_EXITED;
     pr_devel(DIS_STATUS_COMPLETE);
-    do_exit(0);
+    // do_exit(0);
     return 0;
 }
 
@@ -132,7 +159,7 @@ int dis_wq_init(struct dis_wq *diswq)
         return -42;
     }
     
-    wake_up_process(diswq->thread);
+    wake_up(&diswq->wait_queue);
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -149,13 +176,22 @@ void dis_wq_exit(struct dis_wq *diswq)
         return;
     }
 
-    while (diswq->thread_status != DIS_WQ_EXITED) {
-        dis_wq_signal(diswq, DIS_WQ_EXIT);
-        msleep(sleep_ms);
-        sleep_ms = min(sleep_ms + 1, DIS_QP_SLEEP_MS_MAX);
-    }
+    kthread_stop(diswq->thread);
+    wake_up(&diswq->wait_queue);
+    // dis_wq_signal(&diswq, DIS_WQ_EXIT);
+
+    // while (diswq->thread_status != DIS_WQ_EXITED) {
+    //     schedule();
+    //     sleep_ms = min(sleep_ms + 1, DIS_QP_SLEEP_MS_MAX);
+    // }
 
     pr_devel(DIS_STATUS_COMPLETE);
+}
+
+int dis_qp_signal(struct dis_wq *disqp, enum dis_wq_flag flag)
+{
+    //TODO:
+    return 0;
 }
 
 int dis_qp_init(struct dis_qp *disqp)

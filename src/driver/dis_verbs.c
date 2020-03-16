@@ -295,8 +295,8 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 
             // disqp->rq.dismsq.incoming_msq   = NULL;
             // disqp->rq.dismsq.outgoing_msq   = NULL;
-            disqp->rq.dismsq.lmsq_id        = 444;
-            disqp->rq.dismsq.rmsq_id        = 444;
+            disqp->rq.dismsq.lmsq_id        = disqp->qpn * 2;
+            disqp->rq.dismsq.rmsq_id        = (attr->dest_qp_num * 2) + 1;
             disqp->rq.dismsq.max_msg_count  = 16;
             disqp->rq.dismsq.max_msg_size   = 128;
             disqp->rq.dismsq.timeout        = 1234;
@@ -312,8 +312,8 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 
             // disqp->sq.dismsq.incoming_msq   = NULL;
             // disqp->sq.dismsq.outgoing_msq   = NULL;
-            disqp->sq.dismsq.lmsq_id        = 555;
-            disqp->sq.dismsq.rmsq_id        = 555;
+            disqp->sq.dismsq.lmsq_id        = (disqp->qpn * 2) + 1;
+            disqp->sq.dismsq.rmsq_id        = attr->dest_qp_num * 2;
             disqp->sq.dismsq.max_msg_count  = 16;
             disqp->sq.dismsq.max_msg_size   = 128;
             disqp->sq.dismsq.timeout        = 1234;

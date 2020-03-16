@@ -11,8 +11,8 @@
 
 enum dis_wq_flag {
     DIS_WQ_EMPTY,
-    DIS_WQ_CONNECT_SEND,
-    DIS_WQ_CONNECT_RECV,
+    DIS_WQ_CONNECT_SQ,
+    DIS_WQ_CONNECT_RQ,
     DIS_WQ_POST_SEND,
     DIS_WQ_POST_RECV,
     DIS_WQ_EXIT
