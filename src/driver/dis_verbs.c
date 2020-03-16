@@ -1,21 +1,9 @@
 #include "pr_fmt.h"
 
 #include "dis_verbs.h"
-#include "dis_driver.h"
+#include "dis_qp.h"
 
 static int glbal_qpn = 10;
-
-// extern int sci_if_handshake_msq(struct sci_if_msq_duplex *msq, int retry_max);
-// extern int sci_if_create_msq(struct sci_if_msq_duplex *msq, int retry_max);
-// extern void sci_if_remove_msq(struct sci_if_msq_duplex *msq);
-// extern int sci_if_connect_msq(struct sci_if_msq_duplex *msq, int retry_max);
-// extern void sci_if_disconnect_msq(struct sci_if_msq_duplex *msq);
-// extern int sci_if_send_request(struct sci_if_msg *msg);
-// extern int sci_if_receive_request(struct sci_if_msg *msg, int retry_max);
-
-extern void sci_if_sq_signal(struct dis_qp *disqp);
-extern int sci_if_sq_init(struct dis_qp *disqp);
-
 
 int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *dev_attr,
                         struct ib_udata *udata)
@@ -216,7 +204,7 @@ int dis_req_notify_cq(struct ib_cq *ibcq, enum ib_cq_notify_flags flags)
 
 void dis_destroy_cq(struct ib_cq *ibcq, struct ib_udata *udata)
 {
-    struct dis_cq *discq = to_dis_cq(ibcq);
+    // struct dis_cq *discq = to_dis_cq(ibcq);
 
     pr_devel(DIS_STATUS_START);
 
@@ -314,16 +302,12 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
             disqp->rq.dismsq.timeout        = 1234;
             disqp->rq.dismsq.flags          = 0;
 
-            // ret = sci_if_init_rq(&disqp)
-            // if(ret) {
-
-            // }
-
-
-            // ret = sci_if_handshake_msq(&disqp->rq.dismsq, SCI_IF_TIMEOUT_SEC);
-            // if(ret) {
-            //     goto rtr_handshake_err;
-            // }
+            disqp->rq.thread_status = DIS_EXITED;
+            disqp->rq.thread_flag   = DIS_EMPTY;
+            ret = dis_rq_init(disqp);
+            if(ret) {
+                goto dis_rq_init_err;
+            }
 			break;
 
 		case IB_QPS_RTS:
@@ -338,16 +322,12 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
             disqp->sq.dismsq.timeout        = 1234;
             disqp->sq.dismsq.flags          = 0;
 
-            disqp->sq.thread_flag   = SCI_IF_EMPTY;
-            ret = sci_if_sq_init(disqp);
+            disqp->sq.thread_status = DIS_EXITED;
+            disqp->sq.thread_flag   = DIS_EMPTY;
+            ret = dis_sq_init(disqp);
             if(ret) {
-                goto rts_handshake_err;
+                goto dis_sq_init_err;
             }
-
-            // ret = sci_if_handshake_msq(&disqp->sq.dismsq, SCI_IF_TIMEOUT_SEC);
-            // if(ret) {
-            //     goto rts_handshake_err;
-            // }
 			break;
 
 		default:
@@ -361,11 +341,8 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 
-rts_handshake_err:
-    // sci_if_disconnect_msq(&disqp->rq.dismsq);
-    // sci_if_remove_msq(&disqp->rq.dismsq);
-
-rtr_handshake_err:
+dis_sq_init_err:
+dis_rq_init_err:
     pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
@@ -378,20 +355,9 @@ int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
 
     pr_devel(DIS_STATUS_START);
 
-    // sci_if_disconnect_msq(&disqp->sq.dismsq);
-    // sci_if_remove_msq(&disqp->sq.dismsq);
-
-    // sci_if_disconnect_msq(&disqp->rq.dismsq);
-    // sci_if_remove_msq(&disqp->rq.dismsq);
-
-    disqp->sq.thread_flag = SCI_IF_EXIT;
-    sci_if_sq_signal(disqp);
-
-    // disqp->rq.thread_flag = SCI_IF_EXIT;
-    // sci_if_rq_signal(disqp);
-
+    dis_sq_exit(disqp);
+    dis_rq_exit(disqp);
     kfree(disqp);
-    pr_devel("Free QP: " DIS_STATUS_COMPLETE);
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -414,21 +380,14 @@ int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
     msg.free            = &size_free;
     msg.flags           = 0; //SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
     
-
-    disqp->sq.thread_flag = SCI_IF_POST_SEND;
-    sci_if_sq_signal(disqp);
+    ret = dis_sq_signal(disqp, DIS_POST_SEND);
+    if (ret) {
+        pr_devel(DIS_STATUS_FAIL);
+        return -42;
+    }
     
-    // ret = sci_if_send_request(&msg);
-    // if(ret) {
-    //     goto send_request_err;
-    // }
-
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
-
-    send_request_err:
-    pr_devel(DIS_STATUS_FAIL);
-    return -42;
 }
 
 int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
@@ -437,7 +396,7 @@ int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
     pr_devel(DIS_STATUS_START);
 
     // disqp->rq.thread_flag = SCI_IF_POST_RECV;
-    // sci_if_rq_signal(disqp);
+    // dis_rq_signal(disqp);
     
     pr_devel(DIS_STATUS_FAIL);
     return -42;
