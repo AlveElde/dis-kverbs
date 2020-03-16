@@ -10,6 +10,7 @@
 #include "scilib.h"
 
 enum dis_thread_flag {
+    DIS_POST_WQE,
     DIS_POST_SEND,
     DIS_POST_RECV,
     DIS_EMPTY,

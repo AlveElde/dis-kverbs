@@ -304,7 +304,7 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 
             disqp->rq.thread_status = DIS_EXITED;
             disqp->rq.thread_flag   = DIS_EMPTY;
-            ret = dis_rq_init(disqp);
+            ret = dis_wq_init(&disqp->rq);
             if(ret) {
                 goto dis_rq_init_err;
             }
@@ -324,7 +324,7 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 
             disqp->sq.thread_status = DIS_EXITED;
             disqp->sq.thread_flag   = DIS_EMPTY;
-            ret = dis_sq_init(disqp);
+            ret = dis_wq_init(&disqp->sq);
             if(ret) {
                 goto dis_sq_init_err;
             }
@@ -355,8 +355,8 @@ int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
 
     pr_devel(DIS_STATUS_START);
 
-    dis_sq_exit(disqp);
-    dis_rq_exit(disqp);
+    dis_wq_exit(&disqp->sq);
+    dis_wq_exit(&disqp->rq);
     kfree(disqp);
 
     pr_devel(DIS_STATUS_COMPLETE);
@@ -380,7 +380,7 @@ int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
     msg.free            = &size_free;
     msg.flags           = 0; //SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
     
-    ret = dis_sq_signal(disqp, DIS_POST_SEND);
+    ret = dis_wq_signal(&disqp->sq, DIS_POST_SEND);
     if (ret) {
         pr_devel(DIS_STATUS_FAIL);
         return -42;
