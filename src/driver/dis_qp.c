@@ -2,8 +2,9 @@
 
 #include "dis_verbs.h"
 #include "dis_qp.h"
+#include "sci_if.h"
 
-int dis_sqe_execute(struct dis_wq *diswq)
+int dis_sq_post(struct dis_wq *diswq)
 {
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
@@ -12,7 +13,7 @@ int dis_sqe_execute(struct dis_wq *diswq)
     return 0;
 }
 
-int dis_rqe_execute(struct dis_wq *diswq)
+int dis_rq_post(struct dis_wq *diswq)
 {
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
@@ -21,17 +22,17 @@ int dis_rqe_execute(struct dis_wq *diswq)
     return 0;
 }
 
-int dis_sq_connect(struct dis_wq *diswq)
+int dis_sq_create(struct dis_wq *diswq)
 {
     int ret;
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
 
-    // ret = sci_if_connect_msq(diswq->dismsq, DIS_QP_CONNECT_RETRY_MAX);
-    // if (ret) {
-    //     pr_devel(DIS_STATUS_FAIL);
-    //     return -42;
-    // }
+    ret = sci_if_create_msq(&diswq->dismsq);
+    if (ret) {
+        pr_devel(DIS_STATUS_FAIL);
+        return -42;
+    }
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -43,11 +44,35 @@ int dis_rq_connect(struct dis_wq *diswq)
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
 
-    // ret = sci_if_connect_msq(diswq->dismsq, DIS_QP_CONNECT_RETRY_MAX);
-    // if (ret) {
-    //     pr_devel(DIS_STATUS_FAIL);
-    //     return -42;
-    // }
+    ret = sci_if_connect_msq(&diswq->dismsq);
+    if (ret) {
+        pr_devel(DIS_STATUS_FAIL);
+        return -42;
+    }
+
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
+}
+
+int dis_sq_remove(struct dis_wq *diswq)
+{
+    int ret;
+    pr_devel(DIS_STATUS_START);
+    //TODO: Mutex
+
+    sci_if_disconnect_msq(&diswq->dismsq);
+
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
+}
+
+int dis_rq_disconnect(struct dis_wq *diswq)
+{
+    int ret;
+    pr_devel(DIS_STATUS_START);
+    //TODO: Mutex
+
+    sci_if_disconnect_msq(&diswq->dismsq);
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -60,11 +85,11 @@ int dis_wq_thread(void *diswq_data)
     struct dis_wq *diswq = (struct dis_wq*)diswq_data;
     pr_devel(DIS_STATUS_START);
     
-    diswq->thread_status = DIS_WQ_RUNNING;
+    diswq->wq_state = DIS_WQ_RUNNING;
  
     while (!exit && !kthread_should_stop()) {
         signal = wait_event_killable(diswq->wait_queue,
-                                        diswq->thread_flag != DIS_WQ_EMPTY ||
+                                        diswq->wq_flag != DIS_WQ_EMPTY ||
                                         kthread_should_stop());
         if (signal) {
             pr_devel("Kill signal received, exiting!");
@@ -77,52 +102,97 @@ int dis_wq_thread(void *diswq_data)
         }
 
         //TODO: Mutex
-        switch (diswq->thread_flag) {
-        case DIS_WQ_POST_SEND:
-            pr_devel("Thread flag: DIS_WQ_POST_SEND");
-            ret = dis_sqe_execute(diswq);
-            if(ret) {
-                pr_devel(DIS_STATUS_FAIL);
+        switch (diswq->wq_flag) {
+        case DIS_WQ_POST:
+            pr_devel("Thread flag: DIS_WQ_POST");
+            switch (diswq->wq_type)
+            {
+            case DIS_SQ:
+                ret = dis_sq_post(diswq);
+                if(ret) {
+                    pr_devel(DIS_STATUS_FAIL);
+                    exit = true;
+                }
+                break;
+            case DIS_RQ:
+                ret = dis_rq_post(diswq);
+                if(ret) {
+                    pr_devel(DIS_STATUS_FAIL);
+                    exit = true;
+                }
+                break;
+            default:
+                pr_devel("WQ Type: Unknown, exiting!");
                 exit = true;
+                break;
             }
             break;
 
-        case DIS_WQ_CONNECT_SQ:
-            pr_devel("Thread flag: DIS_WQ_CONNECT_SQ");
-            ret = dis_sq_connect(diswq);
-            if(ret) {
-                pr_devel(DIS_STATUS_FAIL);
+        case DIS_WQ_CONNECT:
+            pr_devel("Thread flag: DIS_WQ_CONNECT");
+            switch (diswq->wq_type)
+            {
+            case DIS_SQ:
+                ret = dis_sq_create(diswq);
+                if(ret) {
+                    pr_devel(DIS_STATUS_FAIL);
+                    exit = true;
+                }
+                break;
+            case DIS_RQ:
+                ret = dis_rq_connect(diswq);
+                if(ret) {
+                    pr_devel(DIS_STATUS_FAIL);
+                    exit = true;
+                }
+                break;
+            default:
+                pr_devel("WQ Type: Unknown, exiting!");
                 exit = true;
+                break;
             }
             break;
 
-        case DIS_WQ_POST_RECV:
-            pr_devel("Thread flag: DIS_WQ_POST_RECV");
-            ret = dis_rqe_execute(diswq);
-            if(ret) {
-                pr_devel(DIS_STATUS_FAIL);
+        case DIS_WQ_DISCONNECT:
+            pr_devel("Thread flag: DIS_WQ_DISCONNECT");
+            switch (diswq->wq_type)
+            {
+            case DIS_SQ:
+                ret = dis_sq_remove(diswq);
+                if(ret) {
+                    pr_devel(DIS_STATUS_FAIL);
+                    exit = true;
+                }
+                break;
+            case DIS_RQ:
+                ret = dis_rq_disconnect(diswq);
+                if(ret) {
+                    pr_devel(DIS_STATUS_FAIL);
+                    exit = true;
+                }
+                break;
+            default:
+                pr_devel("WQ Type: Unknown, exiting!");
                 exit = true;
+                break;
             }
             break;
 
-        case DIS_WQ_EXIT:
-            pr_devel("Thread flag: DIS_WQ_EXIT");
-            exit = true;
-            break;
-        
         default:
             pr_devel("Thread flag: Unknown, exiting!");
             exit = true;
             break;
         }
 
-        diswq->thread_flag = DIS_WQ_EMPTY;
+        diswq->wq_flag = DIS_WQ_EMPTY;
     }
 
-    diswq->thread_flag      = DIS_WQ_EMPTY;
-    diswq->thread_status    = DIS_WQ_EXITED;
+    sci_if_disconnect_msq(&diswq->dismsq);
+    sci_if_remove_msq(&diswq->dismsq);
+
+    diswq->wq_flag  = DIS_WQ_EMPTY;
+    diswq->wq_state = DIS_WQ_EXITED;
     pr_devel(DIS_STATUS_COMPLETE);
-    // do_exit(0);
     return 0;
 }
 
@@ -131,12 +201,12 @@ int dis_wq_signal(struct dis_wq *diswq, enum dis_wq_flag flag)
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
 
-    if (diswq->thread_status != DIS_WQ_RUNNING) {
+    if (diswq->wq_state != DIS_WQ_RUNNING) {
         pr_devel(DIS_STATUS_FAIL);
         return -42;
     }
 
-    diswq->thread_flag = flag;
+    diswq->wq_flag = flag;
     wake_up(&diswq->wait_queue);
 
     pr_devel(DIS_STATUS_COMPLETE);
@@ -150,12 +220,12 @@ int dis_wq_init(struct dis_wq *diswq)
     
     init_waitqueue_head(&diswq->wait_queue);
 
-    diswq->thread_status = DIS_WQ_INITIALIZED;
+    diswq->wq_state = DIS_WQ_INITIALIZED;
 
     diswq->thread = kthread_create(dis_wq_thread, (void*)diswq, "DIS WQ Thread");//TODO: More descriptive name
     if (!diswq->thread) {
         pr_devel(DIS_STATUS_FAIL);
-        diswq->thread_status = DIS_WQ_UNINITIALIZED;
+        diswq->wq_state = DIS_WQ_UNINITIALIZED;
         return -42;
     }
     
@@ -167,23 +237,16 @@ int dis_wq_init(struct dis_wq *diswq)
 
 void dis_wq_exit(struct dis_wq *diswq)
 {
-    int sleep_ms = 0;
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
 
-    if (diswq->thread_status == DIS_WQ_UNINITIALIZED) {
+    if (diswq->wq_state == DIS_WQ_UNINITIALIZED) {
         pr_devel(DIS_STATUS_COMPLETE);
         return;
     }
 
     kthread_stop(diswq->thread);
     wake_up(&diswq->wait_queue);
-    // dis_wq_signal(&diswq, DIS_WQ_EXIT);
-
-    // while (diswq->thread_status != DIS_WQ_EXITED) {
-    //     schedule();
-    //     sleep_ms = min(sleep_ms + 1, DIS_QP_SLEEP_MS_MAX);
-    // }
 
     pr_devel(DIS_STATUS_COMPLETE);
 }
@@ -199,11 +262,13 @@ int dis_qp_init(struct dis_qp *disqp)
     int ret;
     pr_devel(DIS_STATUS_START);
 
-    disqp->sq.thread_status = DIS_WQ_UNINITIALIZED;
-    disqp->sq.thread_flag   = DIS_WQ_EMPTY;
+    disqp->sq.wq_state = DIS_WQ_UNINITIALIZED;
+    disqp->sq.wq_flag   = DIS_WQ_EMPTY;
+    disqp->sq.wq_type   = DIS_SQ;
 
-    disqp->rq.thread_status = DIS_WQ_UNINITIALIZED;
-    disqp->rq.thread_flag   = DIS_WQ_EMPTY;
+    disqp->rq.wq_state  = DIS_WQ_UNINITIALIZED;
+    disqp->rq.wq_flag   = DIS_WQ_EMPTY;
+    disqp->rq.wq_type   = DIS_RQ;
 
     ret = dis_wq_init(&disqp->sq);
     if (ret) {

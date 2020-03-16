@@ -11,11 +11,9 @@
 
 enum dis_wq_flag {
     DIS_WQ_EMPTY,
-    DIS_WQ_CONNECT_SQ,
-    DIS_WQ_CONNECT_RQ,
-    DIS_WQ_POST_SEND,
-    DIS_WQ_POST_RECV,
-    DIS_WQ_EXIT
+    DIS_WQ_CONNECT,
+    DIS_WQ_POST,
+    DIS_WQ_DISCONNECT,
 };
 
 enum dis_wq_status {
@@ -23,6 +21,11 @@ enum dis_wq_status {
     DIS_WQ_INITIALIZED,
     DIS_WQ_RUNNING,
     DIS_WQ_EXITED
+};
+
+enum dis_wq_type {
+    DIS_SQ,
+    DIS_RQ
 };
 
 // Provider-specific structures.
@@ -69,8 +72,9 @@ struct dis_wq {
     struct sci_if_msq       dismsq;
     struct task_struct      *thread;
     wait_queue_head_t       wait_queue;
-    enum dis_wq_flag        thread_flag;
-    enum dis_wq_status      thread_status;
+    enum dis_wq_flag        wq_flag;
+    enum dis_wq_status      wq_state;
+    enum dis_wq_type        wq_type;
     u32                     max_wqe;
     u32                     max_sge;
     u32                     max_inline;

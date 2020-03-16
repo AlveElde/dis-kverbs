@@ -372,7 +372,7 @@ int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
     msg.free            = &size_free;
     msg.flags           = 0; //SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
     
-    ret = dis_wq_signal(&disqp->sq, DIS_WQ_POST_SEND);
+    ret = dis_wq_signal(&disqp->sq, DIS_WQ_POST);
     if (ret) {
         pr_devel(DIS_STATUS_FAIL);
         return -42;
@@ -387,7 +387,7 @@ int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
 {
     pr_devel(DIS_STATUS_START);
 
-    // disqp->rq.thread_flag = SCI_IF_POST_RECV;
+    // disqp->rq.wq_flag = SCI_IF_POST_RECV;
     // dis_rq_signal(disqp);
     
     pr_devel(DIS_STATUS_FAIL);

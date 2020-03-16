@@ -19,6 +19,7 @@ EXTRA_CFLAGS += -D_DIS_KERNEL_ 			\
 				-DHAVE_WAIT_QUEUE_ENTRY	\
 
 EXTRA_CFLAGS += -I$(KVERBS_SRC)/common						\
+				-I$(KVERBS_SRC)/sci_if						\
 				-I$(DIS_SRC)/include						\
 				-I$(DIS_SRC)/include/dis					\
 				-I$(DIS_SRC)/include/os						\
