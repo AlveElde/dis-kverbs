@@ -9,17 +9,18 @@
 
 #include "scilib.h"
 
-enum dis_thread_flag {
-    DIS_POST_WQE,
-    DIS_POST_SEND,
-    DIS_POST_RECV,
-    DIS_EMPTY,
-    DIS_EXIT
+enum dis_wq_flag {
+    DIS_WQ_EMPTY,
+    DIS_WQ_POST_SEND,
+    DIS_WQ_POST_RECV,
+    DIS_WQ_EXIT
 };
 
-enum dis_thread_status {
-    DIS_RUNNING,
-    DIS_EXITED
+enum dis_wq_status {
+    DIS_WQ_UNINITIALIZED,
+    DIS_WQ_INITIALIZED,
+    DIS_WQ_RUNNING,
+    DIS_WQ_EXITED
 };
 
 // Provider-specific structures.
@@ -66,8 +67,8 @@ struct dis_wq {
     struct sci_if_msq       dismsq;
     struct task_struct      *thread;
     wait_queue_head_t       wait_queue;
-    enum dis_thread_flag    thread_flag;
-    enum dis_thread_status  thread_status;
+    enum dis_wq_flag        thread_flag;
+    enum dis_wq_status      thread_status;
     u32                     max_wqe;
     u32                     max_sge;
     u32                     max_inline;

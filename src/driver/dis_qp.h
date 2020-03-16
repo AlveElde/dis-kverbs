@@ -3,7 +3,7 @@
 
 #include "dis_verbs.h"
 
-int dis_wq_signal(struct dis_wq *diswq, enum dis_thread_flag flag);
+int dis_wq_signal(struct dis_wq *diswq, enum dis_wq_flag flag);
 int dis_wq_init(struct dis_wq *diswq);
 void dis_wq_exit(struct dis_wq *diswq);
 
