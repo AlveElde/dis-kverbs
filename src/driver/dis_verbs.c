@@ -283,10 +283,10 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 		case IB_QPS_INIT:
 			pr_devel("Modify QP state: INIT");
 
-            // ret = sci_if_init_qp(&disqp);
-            // if(ret) {
-
-            // }
+            ret = dis_qp_init(disqp);
+            if (ret) {
+                goto dis_qp_init_err;
+            }
 
 			break;
 
@@ -301,13 +301,10 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
             disqp->rq.dismsq.max_msg_size   = 128;
             disqp->rq.dismsq.timeout        = 1234;
             disqp->rq.dismsq.flags          = 0;
-
-            disqp->rq.thread_status = DIS_WQ_UNINITIALIZED;
-            disqp->rq.thread_flag   = DIS_WQ_EMPTY;
-            ret = dis_wq_init(&disqp->rq);
-            if(ret) {
-                goto dis_rq_init_err;
-            }
+            // ret = dis_wq_init(&disqp->rq);
+            // if(ret) {
+            //     goto dis_rq_init_err;
+            // }
 			break;
 
 		case IB_QPS_RTS:
@@ -321,13 +318,10 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
             disqp->sq.dismsq.max_msg_size   = 128;
             disqp->sq.dismsq.timeout        = 1234;
             disqp->sq.dismsq.flags          = 0;
-
-            disqp->sq.thread_status = DIS_WQ_UNINITIALIZED;
-            disqp->sq.thread_flag   = DIS_WQ_EMPTY;
-            ret = dis_wq_init(&disqp->sq);
-            if(ret) {
-                goto dis_sq_init_err;
-            }
+            // ret = dis_wq_init(&disqp->sq);
+            // if(ret) {
+            //     goto dis_sq_init_err;
+            // }
 			break;
 
 		default:
@@ -341,8 +335,7 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 
-dis_sq_init_err:
-dis_rq_init_err:
+dis_qp_init_err:
     pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
@@ -355,8 +348,7 @@ int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
 
     pr_devel(DIS_STATUS_START);
 
-    dis_wq_exit(&disqp->sq);
-    dis_wq_exit(&disqp->rq);
+    dis_qp_exit(disqp);
     kfree(disqp);
 
     pr_devel(DIS_STATUS_COMPLETE);
