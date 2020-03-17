@@ -35,7 +35,7 @@ ins-req-sci_if: ins-dis_msq
 	sudo insmod $(SCI_IF_SRC)/sci_if_mod.ko local_adapter_no=0 remote_node_id=4 is_initiator=N
 
 ins-res-sci_if: ins-dis_msq
-	sudo insmod $(SCI_IF_SRC)/sci_if_mod.ko local_adapter_no=0 remote_node_id=4 is_initiator=Y
+	sudo insmod $(SCI_IF_SRC)/sci_if_mod.ko local_adapter_no=0 remote_node_id=8 is_initiator=Y
 
 ins-req: dmesg-c ins-req-sci_if dmesg-p
 

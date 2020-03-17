@@ -28,16 +28,25 @@ MODULE_PARM_DESC(is_initiator, "");
 
 int sci_if_create_msq(struct sci_if_msq *msq)
 {
-    // int i = 0;
+    int lmsq_id, rmsq_id;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
-    // for(i = 0; i < retry_max; i++) {
+    if (is_initiator) {
+        lmsq_id = msq->l_qpn * 2;
+        rmsq_id = msq->r_qpn * 2;
+    } else {
+        lmsq_id = (msq->l_qpn * 2) + 1;
+        rmsq_id = (msq->r_qpn * 2) + 1;
+    }
+
+    pr_devel("Targeting remote_node_id %d", remote_node_id);
+    pr_devel("Creating MSQ with lmsq_id: %d, rmsq_id: %d", lmsq_id, rmsq_id);
     err = SCILCreateMsgQueue(&(msq->msq),
                                 local_adapter_no,
                                 remote_node_id, 
-                                msq->lmsq_id,
-                                msq->rmsq_id,
+                                lmsq_id,
+                                rmsq_id,
                                 msq->max_msg_count,
                                 msq->max_msg_size,
                                 msq->timeout,
@@ -48,24 +57,15 @@ int sci_if_create_msq(struct sci_if_msq *msq)
         pr_devel(DIS_STATUS_COMPLETE);
         return 0;
     case SCI_ERR_ILLEGAL_PARAMETER:
-        pr_devel("SCI_ERR_ILLEGAL_PARAMETER: " DIS_STATUS_FAIL);
+        pr_devel("SCI_ERR_ILLEGAL_PARAMETER");
         return -42;
     case SCI_ERR_NOSPC:
-        pr_devel("SCI_ERR_NOSPC" DIS_STATUS_FAIL);
+        pr_devel("SCI_ERR_NOSPC");
         return -42;
     default:
         pr_devel("Unknown error: %d" DIS_STATUS_FAIL, err);
         return -42;
     }
-
-        // if(i + 1 < retry_max) {
-        //     pr_devel("Sleeping and retrying.. %d", err);
-        //     msleep(1000);
-        // }
-    // }
-
-    // pr_devel(DIS_STATUS_FAIL);
-    // return -42;
 }
 EXPORT_SYMBOL(sci_if_create_msq);
 
@@ -79,16 +79,25 @@ EXPORT_SYMBOL(sci_if_remove_msq);
 
 int sci_if_connect_msq(struct sci_if_msq *msq)
 {
-    // int i = 0;
+    int lmsq_id, rmsq_id;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
-    
-    // for(i = 0; i < retry_max; i++) {
+
+    if (is_initiator) {
+        lmsq_id = (msq->l_qpn * 2) + 1;
+        rmsq_id = (msq->r_qpn * 2) + 1;
+    } else {
+        lmsq_id = msq->l_qpn * 2;
+        rmsq_id = msq->r_qpn * 2;
+    }
+
+    pr_devel("Targeting remote_node_id %d", remote_node_id);
+    pr_devel("Connecting MSQ with lmsq_id: %d, rmsq_id: %d", lmsq_id, rmsq_id);
     err = SCILConnectMsgQueue(&(msq->msq), 
                                 local_adapter_no, 
                                 remote_node_id, 
-                                msq->lmsq_id,
-                                msq->rmsq_id, 
+                                lmsq_id,
+                                rmsq_id,
                                 msq->max_msg_count, 
                                 msq->max_msg_size, 
                                 msq->timeout, 
@@ -100,22 +109,14 @@ int sci_if_connect_msq(struct sci_if_msq *msq)
         return 0;
     case SCI_ERR_CONNECTION_REFUSED:
         pr_devel("SCI_ERR_CONNECTION_REFUSED");
-        break;
+        return -42;
     case SCI_ERR_NO_SUCH_SEGMENT:
-        pr_devel("SCI_ERR_NOSPC");
-        break;
+        pr_devel("SCI_ERR_NO_SUCH_SEGMENT");
+        return -42;
     default:
         pr_devel("Unknown error: %d", err);
+        return -42;
     }
-        
-    //     if(i + 1 < retry_max) {
-    //         pr_devel("Sleeping and retrying..");
-    //         msleep(1000);
-    //     }
-    // }
-
-    pr_devel(DIS_STATUS_FAIL);
-    return -42;
 }
 EXPORT_SYMBOL(sci_if_connect_msq);
 
@@ -126,42 +127,6 @@ void sci_if_disconnect_msq(struct sci_if_msq *msq)
     pr_devel(DIS_STATUS_COMPLETE);
 }
 EXPORT_SYMBOL(sci_if_disconnect_msq);
-
-// int sci_if_handshake_msq(struct sci_if_msq *msq) 
-// {
-//     int ret;
-
-//     if(is_initiator) {
-//         ret = sci_if_create_msq(msq, retry_max);
-//         if(ret) {
-//             pr_devel(DIS_STATUS_FAIL);
-//             return -42;
-//         }
-
-//         ret = sci_if_connect_msq(msq, retry_max);
-//         if(ret) {
-//             pr_devel(DIS_STATUS_FAIL);
-//             sci_if_remove_msq(msq);
-//             return -42;
-//         }
-//     } else {
-//         ret = sci_if_connect_msq(msq, retry_max);
-//         if(ret) {
-//             pr_devel(DIS_STATUS_FAIL);
-//             return -42;
-//         }
-
-//         ret = sci_if_create_msq(msq, retry_max);
-//         if(ret) {
-//             pr_devel(DIS_STATUS_FAIL);
-//             sci_if_disconnect_msq(msq);
-//             return -42;
-//         }
-//     }
-
-//     pr_devel(DIS_STATUS_COMPLETE);
-//     return 0;
-// }
 
 int sci_if_send_request(struct sci_if_msg *msg)
 {
@@ -193,11 +158,9 @@ EXPORT_SYMBOL(sci_if_send_request);
 
 int sci_if_receive_request(struct sci_if_msg *msg)
 {
-    // int i;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
-    // for(i = 0; i < retry_max; i++) {
     err = SCILReceiveMsg(*(msg->msq),
                         msg->msg,
                         msg->size,
@@ -221,11 +184,6 @@ int sci_if_receive_request(struct sci_if_msg *msg)
         pr_devel("Unknown error code: " DIS_STATUS_FAIL);
         return -42;
     }
-
-    //     if(i + 1 < retry_max) {
-    //         msleep(1000);
-    //     }
-    // }
 
     pr_devel(DIS_STATUS_FAIL);
     return -42;

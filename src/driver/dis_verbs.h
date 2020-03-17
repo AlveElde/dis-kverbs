@@ -48,13 +48,6 @@ struct dis_ah {
     struct dis_dev  *disdev;
 };
 
-struct dis_wqe {
-    u32 num;
-    u16 flags;
-    u8  num_sge;
-    struct ib_sge sg_list[DIS_MAX_SGE];
-};
-
 struct sci_if_msg {
     sci_msq_queue_t *msq;
     void            *msg;    
@@ -68,12 +61,22 @@ struct sci_if_msq {
 
     unsigned int    local_adapter_no; 
     unsigned int    remote_node_id;   
-    unsigned int    lmsq_id;
-    unsigned int    rmsq_id;
+    // unsigned int    lmsq_id;
+    // unsigned int    rmsq_id;
     unsigned int    max_msg_count;    
     unsigned int    max_msg_size;  
     unsigned int    timeout;
     unsigned int    flags;
+
+    u32 l_qpn;   //
+    u32 r_qpn;   //
+};
+
+struct dis_wqe {
+    u32 num;
+    u16 flags;
+    u8  num_sge;
+    struct ib_sge sg_list[DIS_MAX_SGE];
 };
 
 struct dis_wq {
@@ -93,20 +96,23 @@ struct dis_wq {
     u32 max_wqe;    //
     u32 max_sge;    //
     u32 max_inline; //
+    u32 l_qpn;        //
+    u32 r_qpn;   //
 };
 
 struct dis_qp {
-	struct ib_qp        ibqp;
-    struct dis_dev      *disdev;
-    struct dis_wq       sq;
-    struct dis_wq       rq;
+	struct ib_qp    ibqp;
+    struct dis_dev  *disdev;
+    struct dis_wq   sq;
+    struct dis_wq   rq;
 
     enum ib_sig_type    sq_sig_type;
 	enum ib_qp_type     type;
     enum ib_qp_state    state;
 
-    int                 mtu;
-    int                 qpn;
+    int mtu;
+    int l_qpn;
+    int r_qpn;
 
     void (*event_handler)(struct ib_event *, void *);
 };
