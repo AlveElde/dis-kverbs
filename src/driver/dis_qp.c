@@ -28,11 +28,11 @@ int dis_sq_create(struct dis_wq *diswq)
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
 
-    ret = sci_if_create_msq(&diswq->dismsq);
-    if (ret) {
-        pr_devel(DIS_STATUS_FAIL);
-        return -42;
-    }
+    // ret = sci_if_create_msq(&diswq->dismsq);
+    // if (ret) {
+    //     pr_devel(DIS_STATUS_FAIL);
+    //     return -42;
+    // }
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -44,48 +44,67 @@ int dis_rq_connect(struct dis_wq *diswq)
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
 
-    ret = sci_if_connect_msq(&diswq->dismsq);
-    if (ret) {
-        pr_devel(DIS_STATUS_FAIL);
-        return -42;
-    }
+    // ret = sci_if_connect_msq(&diswq->dismsq);
+    // if (ret) {
+    //     pr_devel(DIS_STATUS_FAIL);
+    //     return -42;
+    // }
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
-int dis_sq_remove(struct dis_wq *diswq)
+void dis_sq_remove(struct dis_wq *diswq)
 {
-    int ret;
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
 
-    sci_if_disconnect_msq(&diswq->dismsq);
+    // sci_if_disconnect_msq(&diswq->dismsq);
 
     pr_devel(DIS_STATUS_COMPLETE);
-    return 0;
 }
 
-int dis_rq_disconnect(struct dis_wq *diswq)
+void dis_rq_disconnect(struct dis_wq *diswq)
 {
-    int ret;
     pr_devel(DIS_STATUS_START);
     //TODO: Mutex
 
-    sci_if_disconnect_msq(&diswq->dismsq);
+    // sci_if_disconnect_msq(&diswq->dismsq);
 
     pr_devel(DIS_STATUS_COMPLETE);
-    return 0;
 }
 
-int dis_wq_thread(void *diswq_data)
+int dis_wq_thread(void *diswq_buf)
 {
     int ret, signal;
     bool exit = false;
-    struct dis_wq *diswq = (struct dis_wq*)diswq_data;
+    struct dis_wq *diswq = (struct dis_wq*)diswq_buf;
     pr_devel(DIS_STATUS_START);
     
     diswq->wq_state = DIS_WQ_RUNNING;
+
+    switch (diswq->wq_type) {
+    case DIS_SQ:
+        ret = dis_sq_create(diswq);
+        if(ret) {
+            pr_devel(DIS_STATUS_FAIL);
+            exit = true;
+        }
+        break;
+
+    case DIS_RQ:
+        ret = dis_rq_connect(diswq);
+        if(ret) {
+            pr_devel(DIS_STATUS_FAIL);
+            exit = true;
+        }
+        break;
+
+    default:
+        pr_devel("WQ Type: Unknown, exiting!");
+        exit = true;
+        break;
+    }
  
     while (!exit && !kthread_should_stop()) {
         signal = wait_event_killable(diswq->wait_queue,
@@ -101,85 +120,23 @@ int dis_wq_thread(void *diswq_data)
             break;
         }
 
-        //TODO: Mutex
-        switch (diswq->wq_flag) {
-        case DIS_WQ_POST:
-            pr_devel("Thread flag: DIS_WQ_POST");
-            switch (diswq->wq_type)
-            {
-            case DIS_SQ:
-                ret = dis_sq_post(diswq);
-                if(ret) {
-                    pr_devel(DIS_STATUS_FAIL);
-                    exit = true;
-                }
-                break;
-            case DIS_RQ:
-                ret = dis_rq_post(diswq);
-                if(ret) {
-                    pr_devel(DIS_STATUS_FAIL);
-                    exit = true;
-                }
-                break;
-            default:
-                pr_devel("WQ Type: Unknown, exiting!");
+        switch (diswq->wq_type) {
+        case DIS_SQ:
+            ret = dis_sq_post(diswq);
+            if(ret) {
+                pr_devel(DIS_STATUS_FAIL);
                 exit = true;
-                break;
             }
             break;
-
-        case DIS_WQ_CONNECT:
-            pr_devel("Thread flag: DIS_WQ_CONNECT");
-            switch (diswq->wq_type)
-            {
-            case DIS_SQ:
-                ret = dis_sq_create(diswq);
-                if(ret) {
-                    pr_devel(DIS_STATUS_FAIL);
-                    exit = true;
-                }
-                break;
-            case DIS_RQ:
-                ret = dis_rq_connect(diswq);
-                if(ret) {
-                    pr_devel(DIS_STATUS_FAIL);
-                    exit = true;
-                }
-                break;
-            default:
-                pr_devel("WQ Type: Unknown, exiting!");
+        case DIS_RQ:
+            ret = dis_rq_post(diswq);
+            if(ret) {
+                pr_devel(DIS_STATUS_FAIL);
                 exit = true;
-                break;
             }
             break;
-
-        case DIS_WQ_DISCONNECT:
-            pr_devel("Thread flag: DIS_WQ_DISCONNECT");
-            switch (diswq->wq_type)
-            {
-            case DIS_SQ:
-                ret = dis_sq_remove(diswq);
-                if(ret) {
-                    pr_devel(DIS_STATUS_FAIL);
-                    exit = true;
-                }
-                break;
-            case DIS_RQ:
-                ret = dis_rq_disconnect(diswq);
-                if(ret) {
-                    pr_devel(DIS_STATUS_FAIL);
-                    exit = true;
-                }
-                break;
-            default:
-                pr_devel("WQ Type: Unknown, exiting!");
-                exit = true;
-                break;
-            }
-            break;
-
         default:
-            pr_devel("Thread flag: Unknown, exiting!");
+            pr_devel("WQ Type: Unknown, exiting!");
             exit = true;
             break;
         }
@@ -187,8 +144,19 @@ int dis_wq_thread(void *diswq_data)
         diswq->wq_flag = DIS_WQ_EMPTY;
     }
 
-    sci_if_disconnect_msq(&diswq->dismsq);
-    sci_if_remove_msq(&diswq->dismsq);
+    switch (diswq->wq_type) {
+    case DIS_SQ:
+        dis_sq_remove(diswq);
+        break;
+
+    case DIS_RQ:
+        dis_rq_disconnect(diswq);
+        break;
+
+    default:
+        pr_devel("WQ Type: Unknown, exiting!");
+        break;
+    }
 
     diswq->wq_flag  = DIS_WQ_EMPTY;
     diswq->wq_state = DIS_WQ_EXITED;
@@ -221,8 +189,7 @@ int dis_wq_init(struct dis_wq *diswq)
     init_waitqueue_head(&diswq->wait_queue);
 
     diswq->wq_state = DIS_WQ_INITIALIZED;
-
-    diswq->thread = kthread_create(dis_wq_thread, (void*)diswq, "DIS WQ Thread");//TODO: More descriptive name
+    diswq->thread   = kthread_create(dis_wq_thread, (void*)diswq, "DIS WQ Thread");//TODO: More descriptive name
     if (!diswq->thread) {
         pr_devel(DIS_STATUS_FAIL);
         diswq->wq_state = DIS_WQ_UNINITIALIZED;
@@ -251,49 +218,49 @@ void dis_wq_exit(struct dis_wq *diswq)
     pr_devel(DIS_STATUS_COMPLETE);
 }
 
-int dis_qp_signal(struct dis_wq *disqp, enum dis_wq_flag flag)
-{
-    //TODO:
-    return 0;
-}
+// int dis_qp_signal(struct dis_wq *disqp, enum dis_wq_flag flag)
+// {
+//     //TODO:
+//     return 0;
+// }
 
-int dis_qp_init(struct dis_qp *disqp)
-{
-    int ret;
-    pr_devel(DIS_STATUS_START);
+// int dis_qp_init(struct dis_qp *disqp)
+// {
+//     int ret;
+//     pr_devel(DIS_STATUS_START);
 
-    disqp->sq.wq_state = DIS_WQ_UNINITIALIZED;
-    disqp->sq.wq_flag   = DIS_WQ_EMPTY;
-    disqp->sq.wq_type   = DIS_SQ;
+//     disqp->sq.wq_state  = DIS_WQ_UNINITIALIZED;
+//     disqp->sq.wq_flag   = DIS_WQ_EMPTY;
+//     disqp->sq.wq_type   = DIS_SQ;
 
-    disqp->rq.wq_state  = DIS_WQ_UNINITIALIZED;
-    disqp->rq.wq_flag   = DIS_WQ_EMPTY;
-    disqp->rq.wq_type   = DIS_RQ;
+//     disqp->rq.wq_state  = DIS_WQ_UNINITIALIZED;
+//     disqp->rq.wq_flag   = DIS_WQ_EMPTY;
+//     disqp->rq.wq_type   = DIS_RQ;
 
-    ret = dis_wq_init(&disqp->sq);
-    if (ret) {
-        pr_devel(DIS_STATUS_FAIL);
-        return -42;
-    }
+//     ret = dis_wq_init(&disqp->sq);
+//     if (ret) {
+//         pr_devel(DIS_STATUS_FAIL);
+//         return -42;
+//     }
 
-    ret = dis_wq_init(&disqp->rq);
-    if (ret) {
-        dis_wq_exit(&disqp->sq);
-        pr_devel(DIS_STATUS_FAIL);
-        return -42;
-    }
+//     ret = dis_wq_init(&disqp->rq);
+//     if (ret) {
+//         dis_wq_exit(&disqp->sq);
+//         pr_devel(DIS_STATUS_FAIL);
+//         return -42;
+//     }
 
-    pr_devel(DIS_STATUS_COMPLETE);
-    return 0;
-}
+//     pr_devel(DIS_STATUS_COMPLETE);
+//     return 0;
+// }
 
-void dis_qp_exit(struct dis_qp *disqp)
-{
-    int ret;
-    pr_devel(DIS_STATUS_START);
+// void dis_qp_exit(struct dis_qp *disqp)
+// {
+//     int ret;
+//     pr_devel(DIS_STATUS_START);
 
-    dis_wq_exit(&disqp->sq);
-    dis_wq_exit(&disqp->rq);
+//     dis_wq_exit(&disqp->sq);
+//     dis_wq_exit(&disqp->rq);
 
-    pr_devel(DIS_STATUS_COMPLETE);
-}
+//     pr_devel(DIS_STATUS_COMPLETE);
+// }

@@ -9,11 +9,16 @@
 
 #include "scilib.h"
 
+#define DIS_MAX_SGE 4
+
+enum siw_wqe_flags {
+	DIS_WQE_FREE,
+	DIS_WQE_VALID
+};
+
 enum dis_wq_flag {
     DIS_WQ_EMPTY,
-    DIS_WQ_CONNECT,
     DIS_WQ_POST,
-    DIS_WQ_DISCONNECT,
 };
 
 enum dis_wq_status {
@@ -44,7 +49,10 @@ struct dis_ah {
 };
 
 struct dis_wqe {
-    int wqe_num;
+    u32 num;
+    u16 flags;
+    u8  num_sge;
+    struct ib_sge sg_list[DIS_MAX_SGE];
 };
 
 struct sci_if_msg {
@@ -57,6 +65,7 @@ struct sci_if_msg {
 
 struct sci_if_msq {
     sci_msq_queue_t msq;
+
     unsigned int    local_adapter_no; 
     unsigned int    remote_node_id;   
     unsigned int    lmsq_id;
@@ -68,16 +77,22 @@ struct sci_if_msq {
 };
 
 struct dis_wq {
-    struct dis_cq           *discq;
-    struct sci_if_msq       dismsq;
-    struct task_struct      *thread;
-    wait_queue_head_t       wait_queue;
-    enum dis_wq_flag        wq_flag;
-    enum dis_wq_status      wq_state;
-    enum dis_wq_type        wq_type;
-    u32                     max_wqe;
-    u32                     max_sge;
-    u32                     max_inline;
+    struct dis_cq       *discq;
+    struct sci_if_msq   dismsq;
+    struct task_struct  *thread;
+    struct dis_wqe      *wqe;
+
+    wait_queue_head_t wait_queue;
+
+    enum dis_wq_flag    wq_flag;
+    enum dis_wq_status  wq_state;
+    enum dis_wq_type    wq_type;
+
+    u32 wqe_get;    // 
+    u32 wqe_put;    // 
+    u32 max_wqe;    //
+    u32 max_sge;    //
+    u32 max_inline; //
 };
 
 struct dis_qp {
@@ -85,11 +100,14 @@ struct dis_qp {
     struct dis_dev      *disdev;
     struct dis_wq       sq;
     struct dis_wq       rq;
+
     enum ib_sig_type    sq_sig_type;
 	enum ib_qp_type     type;
     enum ib_qp_state    state;
+
     int                 mtu;
     int                 qpn;
+
     void (*event_handler)(struct ib_event *, void *);
 };
 
@@ -100,7 +118,7 @@ struct dis_cqe {
 struct dis_cq {
 	struct ib_cq        ibcq;
     struct dis_dev      *disdev;
-    struct sci_if_msq      dismsq;
+    struct sci_if_msq   dismsq;
 };
 
 struct dis_mr {

@@ -28,7 +28,7 @@ MODULE_PARM_DESC(is_initiator, "");
 
 int sci_if_create_msq(struct sci_if_msq *msq)
 {
-    int i = 0;
+    // int i = 0;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
@@ -79,7 +79,7 @@ EXPORT_SYMBOL(sci_if_remove_msq);
 
 int sci_if_connect_msq(struct sci_if_msq *msq)
 {
-    int i = 0;
+    // int i = 0;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
     
@@ -193,7 +193,7 @@ EXPORT_SYMBOL(sci_if_send_request);
 
 int sci_if_receive_request(struct sci_if_msg *msg)
 {
-    int i;
+    // int i;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
