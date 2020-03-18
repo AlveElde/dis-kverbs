@@ -386,12 +386,11 @@ int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
         }
 
         //TODO: Use memcpy?
-        sqe->num_sge = 0;
-        for (i = 0; i < min(send_wr_iter->num_sge, DIS_MAX_SGE); i++) {
+        sqe->num_sge = min(send_wr_iter->num_sge, DIS_MAX_SGE);
+        for (i = 0; i < sqe->num_sge; i++) {
             sqe->sg_list[i].addr   = send_wr_iter->sg_list[i].addr;
             sqe->sg_list[i].length = send_wr_iter->sg_list[i].length;
             sqe->sg_list[i].lkey   = send_wr_iter->sg_list[i].lkey;
-            sqe->num_sge++;
         }
 
         sqe->flags = DIS_WQE_VALID;
@@ -423,11 +422,11 @@ int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
         }
 
         //TODO: Use memcpy
-        for (i = 0; i < min(recv_wr_iter->num_sge, DIS_MAX_SGE); i++) {
+        rqe->num_sge = min(recv_wr_iter->num_sge, DIS_MAX_SGE);
+        for (i = 0; i < rqe->num_sge; i++) {
             rqe->sg_list[i].addr   = recv_wr_iter->sg_list[i].addr;
             rqe->sg_list[i].length = recv_wr_iter->sg_list[i].length;
             rqe->sg_list[i].lkey   = recv_wr_iter->sg_list[i].lkey;
-            rqe->num_sge++;
         }
 
         rqe->flags = DIS_WQE_VALID;

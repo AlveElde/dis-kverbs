@@ -4,104 +4,21 @@
 #include "dis_qp.h"
 #include "sci_if.h"
 
-int dis_rq_init(struct dis_wq *diswq)
+
+int dis_wq_consume_rqe(struct sci_if_msg *msg)
 {
     int ret, sleep_ms;
     pr_devel(DIS_STATUS_START);
 
-    diswq->dismsq.l_qpn         = diswq->l_qpn;
-    diswq->dismsq.r_qpn         = diswq->r_qpn;
-    diswq->dismsq.max_msg_count = 16;
-    diswq->dismsq.max_msg_size  = 128;
-    diswq->dismsq.timeout       = 1234;
-    diswq->dismsq.flags         = 0;
-    
     sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
     while (!kthread_should_stop()) {
-        ret = sci_if_create_msq(&diswq->dismsq);
+        //TODO: Introduce error codes to exit on lost connection
+        ret = sci_if_receive_request(msg);
         if (!ret) {
             pr_devel(DIS_STATUS_COMPLETE);
             return 0;
         }
-        sleep_ms = min(sleep_ms + DIS_QP_SLEEP_MS_INCREASE, DIS_QP_SLEEP_MS_MAX);
-        msleep_interruptible(sleep_ms);
-    }
 
-    pr_devel(DIS_STATUS_FAIL);
-    return -42;
-}
-
-int dis_rq_post(struct dis_wq *diswq)
-{
-    int ret, size_free, sleep_ms;
-    struct dis_wqe *rqe;
-    struct sci_if_msg msg;
-    pr_devel(DIS_STATUS_START);
-
-    while (!kthread_should_stop()) {
-        rqe = diswq->wqe + (diswq->wqe_get % diswq->max_wqe);
-
-        if(rqe->flags != DIS_WQE_VALID) {
-            pr_devel(DIS_STATUS_COMPLETE);
-            return 0;
-        }
-
-        msg.msq     = &diswq->dismsq.msq;
-        msg.msg     = (void *)(uintptr_t)(rqe->sg_list[0].addr); //TODO: Include all segments
-        msg.size    = rqe->sg_list[0].length;
-        msg.free    = &size_free;
-        msg.flags   = 0; //TODO: SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
-
-        sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
-        while (!kthread_should_stop()) {
-            ret = sci_if_receive_request(&msg);
-            //TODO: Introduce error codes to exit on lost connection
-            if (!ret) {
-                pr_devel("Received message from requester: %s", 
-                            (char *)(uintptr_t)(rqe->sg_list[0].addr));
-                break;
-            }
-            sleep_ms = min(sleep_ms + 10, DIS_QP_SLEEP_MS_MAX);
-            msleep_interruptible(sleep_ms);
-        }
-
-        rqe->flags = DIS_WQE_FREE;
-        diswq->wqe_get++;
-        return 0;
-    }
-
-    pr_devel(DIS_STATUS_FAIL);
-    return -42;
-}
-
-void dis_rq_exit(struct dis_wq *diswq)
-{
-    pr_devel(DIS_STATUS_START);
-
-    sci_if_remove_msq(&diswq->dismsq);
-
-    pr_devel(DIS_STATUS_COMPLETE);
-}
-
-int dis_sq_init(struct dis_wq *diswq)
-{
-    int ret, sleep_ms;
-    pr_devel(DIS_STATUS_START);
-
-    diswq->dismsq.l_qpn         = diswq->l_qpn;
-    diswq->dismsq.r_qpn         = diswq->r_qpn;
-    diswq->dismsq.max_msg_count = 16;
-    diswq->dismsq.max_msg_size  = 128;
-    diswq->dismsq.timeout       = 1234;
-    diswq->dismsq.flags         = 0;
-
-    sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
-    while (!kthread_should_stop()) {
-        ret = sci_if_connect_msq(&diswq->dismsq);
-        if (!ret) {
-            pr_devel(DIS_STATUS_COMPLETE);
-            return 0;
-        }
         sleep_ms = min(sleep_ms + 10, DIS_QP_SLEEP_MS_MAX);
         msleep_interruptible(sleep_ms);
     }
@@ -110,89 +27,167 @@ int dis_sq_init(struct dis_wq *diswq)
     return -42;
 }
 
-int dis_sq_post(struct dis_wq *diswq)
+int dis_wq_consume_sqe(struct sci_if_msg *msg)
 {
-    int ret, sleep_ms, size_free;
-    struct dis_wqe *sqe;
-    struct sci_if_msg msg;
+    int ret, sleep_ms;
     pr_devel(DIS_STATUS_START);
 
+    sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
     while (!kthread_should_stop()) {
-        sqe = diswq->wqe + (diswq->wqe_get % diswq->max_wqe);
-
-        if(sqe->flags != DIS_WQE_VALID) {
+        //TODO: Introduce error codes to exit on lost connection
+        ret = sci_if_send_request(msg);
+        if (!ret) {
             pr_devel(DIS_STATUS_COMPLETE);
             return 0;
         }
 
-        msg.msq     = &diswq->dismsq.msq;
-        msg.msg     = (void *)(uintptr_t)(sqe->sg_list[0].addr); //TODO: Include all segments
-        msg.size    = sqe->sg_list[0].length;
-        msg.free    = &size_free;
-        msg.flags   = 0; //TODO: SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
-
-        sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
-        while (!kthread_should_stop()) {
-            ret = sci_if_send_request(&msg);
-            //TODO: Introduce error codes to exit on lost connection
-            if (!ret) {
-                break;
-            }
-            sleep_ms = min(sleep_ms + 10, DIS_QP_SLEEP_MS_MAX);
-            msleep_interruptible(sleep_ms);
-        }
-
-        sqe->flags = DIS_WQE_FREE;
-        diswq->wqe_get++;
-        return 0;
+        sleep_ms = min(sleep_ms + 10, DIS_QP_SLEEP_MS_MAX);
+        msleep_interruptible(sleep_ms);
     }
 
     pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
 
-void dis_sq_exit(struct dis_wq *diswq)
+int dis_wq_init(struct dis_wq *diswq)
+{
+    int ret, sleep_ms;
+    pr_devel(DIS_STATUS_START);
+
+    diswq->dismsq.l_qpn         = diswq->l_qpn;
+    diswq->dismsq.r_qpn         = diswq->r_qpn;
+    diswq->dismsq.max_msg_count = 16;
+    diswq->dismsq.max_msg_size  = 128;
+    diswq->dismsq.timeout       = 1234;
+    diswq->dismsq.flags         = 0;
+
+    sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
+    while (!kthread_should_stop()) {
+        switch (diswq->wq_type) {
+        case DIS_RQ:
+            ret = sci_if_create_msq(&diswq->dismsq);
+            if(!ret) {
+                pr_devel(DIS_STATUS_COMPLETE);
+                return 0;
+            }
+            break;
+
+        case DIS_SQ:
+            ret = sci_if_connect_msq(&diswq->dismsq);
+            if(!ret) {
+                pr_devel(DIS_STATUS_COMPLETE);
+                return 0;
+            }
+            break;
+
+        default:
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+
+        sleep_ms = min(sleep_ms + 10, DIS_QP_SLEEP_MS_MAX);
+        msleep_interruptible(sleep_ms);
+    }
+
+    pr_devel(DIS_STATUS_FAIL);
+    return -42;
+}
+
+void dis_wq_exit(struct dis_wq *diswq)
 {
     pr_devel(DIS_STATUS_START);
 
-    sci_if_disconnect_msq(&diswq->dismsq);
+    switch (diswq->wq_type) {
+    case DIS_RQ:
+        sci_if_remove_msq(&diswq->dismsq);
+        break;
+
+    case DIS_SQ:
+        sci_if_disconnect_msq(&diswq->dismsq);
+        break;
+
+    default:
+        pr_devel(DIS_STATUS_FAIL);
+        return;
+    }
 
     pr_devel(DIS_STATUS_COMPLETE);
+}
+
+int dis_wq_consume_all(struct dis_wq *diswq)
+{
+    int ret, free;
+    struct dis_wqe *wqe;
+    struct sci_if_msg msg;
+    pr_devel(DIS_STATUS_START);
+
+    while (!kthread_should_stop()) {
+        wqe = diswq->wqe + (diswq->wqe_get % diswq->max_wqe);
+
+        if(wqe->flags != DIS_WQE_VALID) {
+            pr_devel(DIS_STATUS_COMPLETE);
+            return 0;
+        }
+
+        msg.msq     = &diswq->dismsq.msq;
+        msg.msg     = (void *)(wqe->sg_list[0].addr); //TODO: Include all segments
+        msg.size    = wqe->sg_list[0].length;
+        msg.free    = &free;
+        msg.flags   = 0; //TODO: SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
+
+        switch (diswq->wq_type) {
+        case DIS_RQ:
+            //TODO: Introduce error codes to exit on lost connection
+            ret = dis_wq_consume_rqe(&msg);
+            if (ret) {
+                pr_devel(DIS_STATUS_FAIL);
+                return -42;
+            }
+            pr_devel("Successfully received message from requester: %s", 
+                            (char *)(wqe->sg_list[0].addr));
+            break;
+
+        case DIS_SQ:
+            //TODO: Introduce error codes to exit on lost connection
+            ret = dis_wq_consume_sqe(&msg);
+            if (ret) {
+                pr_devel(DIS_STATUS_FAIL);
+                return -42;
+            }
+            pr_devel("Successfully sent message to requester: %s", 
+                            (char *)(wqe->sg_list[0].addr));
+            break;
+
+        default:
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+        
+        wqe->flags = DIS_WQE_FREE;
+        diswq->wqe_get++;
+        return 0; //TODO: remove
+    }
+
+    pr_devel(DIS_STATUS_FAIL);
+    return -42;
 }
 
 int dis_wq_thread(void *diswq_buf)
 {
     int ret, signal;
-    bool exit = false;
     struct dis_wq *diswq = (struct dis_wq*)diswq_buf;
     pr_devel(DIS_STATUS_START);
     
     diswq->wq_state = DIS_WQ_RUNNING;
 
-    switch (diswq->wq_type) {
-    case DIS_RQ:
-        ret = dis_rq_init(diswq);
-        if(ret) {
-            pr_devel(DIS_STATUS_FAIL);
-            exit = true;
-        }
-        break;
-
-    case DIS_SQ:
-        ret = dis_sq_init(diswq);
-        if(ret) {
-            pr_devel(DIS_STATUS_FAIL);
-            exit = true;
-        }
-        break;
-
-    default:
-        pr_devel("WQ Type: Unknown, exiting!");
-        exit = true;
-        break;
+    ret = dis_wq_init(diswq);
+    if (ret) {
+        diswq->wq_state = DIS_WQ_EXITED;
+        pr_devel(DIS_STATUS_FAIL);
+        return 0;
     }
  
-    while (!exit && !kthread_should_stop()) {
+    while (!kthread_should_stop()) {
         signal = wait_event_killable(diswq->wait_queue,
                                         diswq->wq_flag != DIS_WQ_EMPTY ||
                                         kthread_should_stop());
@@ -206,44 +201,15 @@ int dis_wq_thread(void *diswq_buf)
             break;
         }
 
-        diswq->wq_flag = DIS_WQ_EMPTY;
-
-        switch (diswq->wq_type) {
-        case DIS_RQ:
-            ret = dis_rq_post(diswq);
-            if(ret) {
-                pr_devel(DIS_STATUS_FAIL);
-                exit = true;
-            }
-            break;
-        case DIS_SQ:
-            ret = dis_sq_post(diswq);
-            if(ret) {
-                pr_devel(DIS_STATUS_FAIL);
-                exit = true;
-            }
-            break;
-        default:
-            pr_devel("WQ Type: Unknown, exiting!");
-            exit = true;
+        ret = dis_wq_consume_all(diswq);
+        if (ret) {
             break;
         }
 
+        diswq->wq_flag = DIS_WQ_EMPTY;
     }
 
-    switch (diswq->wq_type) {
-    case DIS_RQ:
-        dis_rq_exit(diswq);
-        break;
-
-    case DIS_SQ:
-        dis_sq_exit(diswq);
-        break;
-
-    default:
-        pr_devel("WQ Type: Unknown, exiting!");
-        break;
-    }
+    dis_wq_exit(diswq);
 
     diswq->wq_state = DIS_WQ_EXITED;
     pr_devel(DIS_STATUS_COMPLETE);
