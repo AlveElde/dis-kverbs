@@ -11,6 +11,11 @@
 
 #define DIS_MAX_SGE 4
 
+enum siw_cqe_flags {
+	DIS_CQE_FREE,
+	DIS_CQE_VALID
+};
+
 enum siw_wqe_flags {
 	DIS_WQE_FREE,
 	DIS_WQE_VALID
@@ -48,26 +53,47 @@ struct dis_ah {
     struct dis_dev  *disdev;
 };
 
+struct dis_cqe {
+    struct ib_qp *ibqp;
+
+    u32 id;
+    u16 flags;
+    u16 status;
+    u16 opcode;
+    u16 byte_len;
+};
+
+struct dis_cq {
+	struct ib_cq    ibcq;
+    struct dis_dev  *disdev;
+    struct dis_cqe  *cqe_queue;
+    // struct dis_dev      *disdev;
+    spinlock_t      cqe_lock;
+
+    u32 cqe_get;
+    u32 cqe_put;
+    u32 cqe_max;
+};
+
 struct sci_if_msg {
     sci_msq_queue_t *msq;
     void            *msg;    
-    unsigned int    size;
-    unsigned int    *free;
-    unsigned int    flags;
+    u32    size;
+    u32    *free;
+    u32    flags;
 };
 
 struct sci_if_msq {
     sci_msq_queue_t msq;
 
-    unsigned int    local_adapter_no; 
-    unsigned int    remote_node_id;
-    unsigned int    max_msg_count;    
-    unsigned int    max_msg_size;  
-    unsigned int    timeout;
-    unsigned int    flags;
-
-    u32 l_qpn;   //
-    u32 r_qpn;   //
+    u32 local_adapter_no; 
+    u32 remote_node_id;
+    u32 max_msg_count;    
+    u32 max_msg_size;  
+    u32 timeout;
+    u32 flags;
+    u32 l_qpn; 
+    u32 r_qpn;
 };
 
 struct dis_wqe {
@@ -76,13 +102,16 @@ struct dis_wqe {
     u32 id;
     u16 flags;
     u16 num_sge;
+    u16 opcode;
+    u16 byte_len;
 };
 
 struct dis_wq {
+    struct dis_qp       *disqp;
     struct dis_cq       *discq;
     struct sci_if_msq   dismsq;
     struct task_struct  *thread;
-    struct dis_wqe      *wqe;
+    struct dis_wqe      *wqe_queue;
 
     wait_queue_head_t wait_queue;
 
@@ -90,13 +119,13 @@ struct dis_wq {
     enum dis_wq_status  wq_state;
     enum dis_wq_type    wq_type;
 
-    u32 wqe_get;    // 
-    u32 wqe_put;    // 
-    u32 max_wqe;    //
-    u32 max_sge;    //
-    u32 max_inline; //
-    u32 l_qpn;        //
-    u32 r_qpn;   //
+    u32 wqe_get;
+    u32 wqe_put;
+    u32 wqe_max;
+    u32 max_sge;
+    u32 max_inline;
+    u32 l_qpn;
+    u32 r_qpn;
 };
 
 struct dis_qp {
@@ -109,21 +138,11 @@ struct dis_qp {
 	enum ib_qp_type     type;
     enum ib_qp_state    state;
 
-    int mtu;
-    int l_qpn;
-    int r_qpn;
+    u32 mtu;
+    u32 l_qpn;
+    u32 r_qpn;
 
     void (*event_handler)(struct ib_event *, void *);
-};
-
-struct dis_cqe {
-    struct ib_qp *ibqp;
-};
-
-struct dis_cq {
-	struct ib_cq        ibcq;
-    struct dis_dev      *disdev;
-    struct sci_if_msq   dismsq;
 };
 
 struct dis_mr {
