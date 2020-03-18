@@ -3,7 +3,7 @@
 
 #include "dis_verbs.h"
 
-#define DIS_QP_SLEEP_MS_INITIAL 800
+#define DIS_QP_SLEEP_MS_INITIAL 500
 #define DIS_QP_SLEEP_MS_INCREASE 10
 #define DIS_QP_SLEEP_MS_MAX 1000
 #define DIS_QP_CONNECT_RETRY_MAX 10

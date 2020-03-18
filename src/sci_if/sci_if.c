@@ -173,7 +173,7 @@ int sci_if_receive_request(struct sci_if_msg *msg)
         return 0;
     case SCI_ERR_EWOULD_BLOCK:
         pr_devel("SCI_ERR_EWOULD_BLOCK");
-        break;
+        return -42;
     case SCI_ERR_NOT_CONNECTED:
         pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);
         return -42;
@@ -184,9 +184,6 @@ int sci_if_receive_request(struct sci_if_msg *msg)
         pr_devel("Unknown error code: " DIS_STATUS_FAIL);
         return -42;
     }
-
-    pr_devel(DIS_STATUS_FAIL);
-    return -42;
 }
 EXPORT_SYMBOL(sci_if_receive_request);
 

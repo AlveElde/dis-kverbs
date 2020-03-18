@@ -60,9 +60,7 @@ struct sci_if_msq {
     sci_msq_queue_t msq;
 
     unsigned int    local_adapter_no; 
-    unsigned int    remote_node_id;   
-    // unsigned int    lmsq_id;
-    // unsigned int    rmsq_id;
+    unsigned int    remote_node_id;
     unsigned int    max_msg_count;    
     unsigned int    max_msg_size;  
     unsigned int    timeout;
@@ -73,10 +71,11 @@ struct sci_if_msq {
 };
 
 struct dis_wqe {
-    u32 num;
-    u16 flags;
-    u8  num_sge;
     struct ib_sge sg_list[DIS_MAX_SGE];
+    
+    u32 id;
+    u16 flags;
+    u16 num_sge;
 };
 
 struct dis_wq {

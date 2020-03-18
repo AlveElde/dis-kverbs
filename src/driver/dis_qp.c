@@ -4,11 +4,9 @@
 #include "dis_qp.h"
 #include "sci_if.h"
 
-static 
-
 int dis_rq_init(struct dis_wq *diswq)
 {
-    int ret, sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
+    int ret, sleep_ms;
     pr_devel(DIS_STATUS_START);
 
     diswq->dismsq.l_qpn         = diswq->l_qpn;
@@ -18,6 +16,7 @@ int dis_rq_init(struct dis_wq *diswq)
     diswq->dismsq.timeout       = 1234;
     diswq->dismsq.flags         = 0;
     
+    sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
     while (!kthread_should_stop()) {
         ret = sci_if_create_msq(&diswq->dismsq);
         if (!ret) {
@@ -25,7 +24,7 @@ int dis_rq_init(struct dis_wq *diswq)
             return 0;
         }
         sleep_ms = min(sleep_ms + DIS_QP_SLEEP_MS_INCREASE, DIS_QP_SLEEP_MS_MAX);
-        msleep(sleep_ms);
+        msleep_interruptible(sleep_ms);
     }
 
     pr_devel(DIS_STATUS_FAIL);
@@ -34,10 +33,45 @@ int dis_rq_init(struct dis_wq *diswq)
 
 int dis_rq_post(struct dis_wq *diswq)
 {
+    int ret, size_free, sleep_ms;
+    struct dis_wqe *rqe;
+    struct sci_if_msg msg;
     pr_devel(DIS_STATUS_START);
 
-    pr_devel(DIS_STATUS_COMPLETE);
-    return 0;
+    while (!kthread_should_stop()) {
+        rqe = diswq->wqe + (diswq->wqe_get % diswq->max_wqe);
+
+        if(rqe->flags != DIS_WQE_VALID) {
+            pr_devel(DIS_STATUS_COMPLETE);
+            return 0;
+        }
+
+        msg.msq     = &diswq->dismsq.msq;
+        msg.msg     = (void *)(uintptr_t)(rqe->sg_list[0].addr); //TODO: Include all segments
+        msg.size    = rqe->sg_list[0].length;
+        msg.free    = &size_free;
+        msg.flags   = 0; //TODO: SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
+
+        sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
+        while (!kthread_should_stop()) {
+            ret = sci_if_receive_request(&msg);
+            //TODO: Introduce error codes to exit on lost connection
+            if (!ret) {
+                pr_devel("Received message from requester: %s", 
+                            (char *)(uintptr_t)(rqe->sg_list[0].addr));
+                break;
+            }
+            sleep_ms = min(sleep_ms + 10, DIS_QP_SLEEP_MS_MAX);
+            msleep_interruptible(sleep_ms);
+        }
+
+        rqe->flags = DIS_WQE_FREE;
+        diswq->wqe_get++;
+        return 0;
+    }
+
+    pr_devel(DIS_STATUS_FAIL);
+    return -42;
 }
 
 void dis_rq_exit(struct dis_wq *diswq)
@@ -51,7 +85,7 @@ void dis_rq_exit(struct dis_wq *diswq)
 
 int dis_sq_init(struct dis_wq *diswq)
 {
-    int ret, sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
+    int ret, sleep_ms;
     pr_devel(DIS_STATUS_START);
 
     diswq->dismsq.l_qpn         = diswq->l_qpn;
@@ -61,6 +95,7 @@ int dis_sq_init(struct dis_wq *diswq)
     diswq->dismsq.timeout       = 1234;
     diswq->dismsq.flags         = 0;
 
+    sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
     while (!kthread_should_stop()) {
         ret = sci_if_connect_msq(&diswq->dismsq);
         if (!ret) {
@@ -68,7 +103,7 @@ int dis_sq_init(struct dis_wq *diswq)
             return 0;
         }
         sleep_ms = min(sleep_ms + 10, DIS_QP_SLEEP_MS_MAX);
-        msleep(sleep_ms);
+        msleep_interruptible(sleep_ms);
     }
 
     pr_devel(DIS_STATUS_FAIL);
@@ -77,36 +112,39 @@ int dis_sq_init(struct dis_wq *diswq)
 
 int dis_sq_post(struct dis_wq *diswq)
 {
-    int ret, size_free;
+    int ret, sleep_ms, size_free;
     struct dis_wqe *sqe;
     struct sci_if_msg msg;
     pr_devel(DIS_STATUS_START);
 
     while (!kthread_should_stop()) {
-        sqe = &diswq->wqe[diswq->wqe_get % diswq->max_wqe];
+        sqe = diswq->wqe + (diswq->wqe_get % diswq->max_wqe);
 
         if(sqe->flags != DIS_WQE_VALID) {
             pr_devel(DIS_STATUS_COMPLETE);
             return 0;
         }
 
-        memset(&msg, 0, sizeof(struct sci_if_msg));
         msg.msq     = &diswq->dismsq.msq;
-        msg.msg     = (void *)(sqe->sg_list[0].addr); //TODO: Include all segments
+        msg.msg     = (void *)(uintptr_t)(sqe->sg_list[0].addr); //TODO: Include all segments
         msg.size    = sqe->sg_list[0].length;
         msg.free    = &size_free;
-        msg.flags   = 0; //SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
+        msg.flags   = 0; //TODO: SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
 
-        // while (!kthread_should_stop()) {
-        //     ret = sci_if_send_request(&msg);
-        //     //TODO: Introduce error codes to exit on lost connection
-        //     if (!ret) {
-        //         break;
-        //     }
-        // }
+        sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
+        while (!kthread_should_stop()) {
+            ret = sci_if_send_request(&msg);
+            //TODO: Introduce error codes to exit on lost connection
+            if (!ret) {
+                break;
+            }
+            sleep_ms = min(sleep_ms + 10, DIS_QP_SLEEP_MS_MAX);
+            msleep_interruptible(sleep_ms);
+        }
 
         sqe->flags = DIS_WQE_FREE;
         diswq->wqe_get++;
+        return 0;
     }
 
     pr_devel(DIS_STATUS_FAIL);
@@ -168,6 +206,8 @@ int dis_wq_thread(void *diswq_buf)
             break;
         }
 
+        diswq->wq_flag = DIS_WQ_EMPTY;
+
         switch (diswq->wq_type) {
         case DIS_RQ:
             ret = dis_rq_post(diswq);
@@ -189,16 +229,15 @@ int dis_wq_thread(void *diswq_buf)
             break;
         }
 
-        diswq->wq_flag = DIS_WQ_EMPTY;
     }
 
     switch (diswq->wq_type) {
     case DIS_RQ:
-        dis_sq_exit(diswq);
+        dis_rq_exit(diswq);
         break;
 
     case DIS_SQ:
-        dis_rq_exit(diswq);
+        dis_sq_exit(diswq);
         break;
 
     default:
@@ -206,7 +245,6 @@ int dis_wq_thread(void *diswq_buf)
         break;
     }
 
-    diswq->wq_flag  = DIS_WQ_EMPTY;
     diswq->wq_state = DIS_WQ_EXITED;
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -237,7 +275,7 @@ int dis_qp_post(struct dis_wq *diswq)
 {
     pr_devel(DIS_STATUS_START);
 
-    if (diswq->wq_state != DIS_WQ_RUNNING) {
+    if (diswq->wq_state == DIS_WQ_UNINITIALIZED) {
         pr_devel(DIS_STATUS_FAIL);
         return -42;
     }
@@ -261,6 +299,7 @@ void dis_qp_exit(struct dis_wq *diswq)
 
     kthread_stop(diswq->thread);
     wake_up(&diswq->wait_queue);
+    wake_up_process(diswq->thread);
 
     pr_devel(DIS_STATUS_COMPLETE);
 }

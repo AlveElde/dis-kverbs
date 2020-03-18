@@ -168,14 +168,6 @@ int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *init_attr,
     ibcq->cqe       = init_attr->cqe;
     discq->disdev   = disdev;
 
-    // discq->queue.max_elem   = init_attr->cqe;
-    // discq->queue.elem_size  = sizeof(struct dis_cqe);
-    // ret = dis_create_queue(&discq->queue);
-    // if (ret) {
-    //     dev_err(&ibdev->dev, "Create queue: " DIS_STATUS_FAIL);
-    //     return -42;
-    // }
-
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
@@ -322,6 +314,8 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
                 disqp->sq.r_qpn = disqp->r_qpn;
             }
             
+            disqp->rq.wqe_get = 0;
+            disqp->rq.wqe_put = 0;
             disqp->rq.wq_type = DIS_RQ;
             ret = dis_qp_init(&disqp->rq);
             if(ret) {
@@ -332,6 +326,8 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 		case IB_QPS_RTS:
 			pr_devel("Modify QP state: RTS");
 
+            disqp->sq.wqe_get = 0;
+            disqp->sq.wqe_put = 0;
             disqp->sq.wq_type = DIS_SQ;
             ret = dis_qp_init(&disqp->sq);
             if(ret) {
@@ -359,12 +355,8 @@ dis_rq_init_err:
 int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
 {
     struct dis_qp *disqp = to_dis_qp(ibqp);
-    // struct ib_device *ibdev = ibqp->device;
-    // struct dis_dev *disdev  = to_dis_dev(ibdev);
-
     pr_devel(DIS_STATUS_START);
 
-    // dis_qp_exit(disqp);
     dis_qp_exit(&disqp->rq);
     dis_qp_exit(&disqp->sq);
     kfree(disqp->rq.wqe);
@@ -386,13 +378,15 @@ int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
 
     send_wr_iter = send_wr;
     while (send_wr_iter) {
-        sqe = &disqp->sq.wqe[disqp->sq.wqe_put % disqp->sq.max_wqe];
+        sqe = disqp->sq.wqe + (disqp->sq.wqe_put % disqp->sq.max_wqe);
 
         if(sqe->flags != DIS_WQE_FREE) {
             pr_devel(DIS_STATUS_FAIL);
             return -42;
         }
 
+        //TODO: Use memcpy?
+        sqe->num_sge = 0;
         for (i = 0; i < min(send_wr_iter->num_sge, DIS_MAX_SGE); i++) {
             sqe->sg_list[i].addr   = send_wr_iter->sg_list[i].addr;
             sqe->sg_list[i].length = send_wr_iter->sg_list[i].length;
@@ -413,11 +407,35 @@ int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
 int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
                     const struct ib_recv_wr **bad_wr)
 {
+    int i;
+    struct dis_qp *disqp = to_dis_qp(ibqp);
+    struct dis_wqe *rqe;
+    const struct ib_recv_wr *recv_wr_iter;
     pr_devel(DIS_STATUS_START);
 
-    // disqp->rq.wq_flag = SCI_IF_POST_RECV;
-    // dis_rq_signal(disqp);
+    recv_wr_iter = recv_wr;
+    while (recv_wr_iter) {
+        rqe = disqp->rq.wqe + (disqp->rq.wqe_put % disqp->rq.max_wqe);
+
+        if(rqe->flags != DIS_WQE_FREE) {
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+
+        //TODO: Use memcpy
+        for (i = 0; i < min(recv_wr_iter->num_sge, DIS_MAX_SGE); i++) {
+            rqe->sg_list[i].addr   = recv_wr_iter->sg_list[i].addr;
+            rqe->sg_list[i].length = recv_wr_iter->sg_list[i].length;
+            rqe->sg_list[i].lkey   = recv_wr_iter->sg_list[i].lkey;
+            rqe->num_sge++;
+        }
+
+        rqe->flags = DIS_WQE_VALID;
+        disqp->rq.wqe_put++;
+        dis_qp_post(&disqp->rq);
+        recv_wr_iter = recv_wr_iter->next;
+    }
     
-    pr_devel(DIS_STATUS_FAIL);
-    return -42;
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
 }
