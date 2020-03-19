@@ -22,54 +22,35 @@ clean:
 
 dmesg-c:
 	sudo dmesg -C
-	
-dmesg-p:
+
+rm-srp:
+	sudo rmmod ib_srp
+	sudo rmmod ib_srpt
+
+req: dmesg-c
+	sudo insmod $(SCI_SRC)/dis_msq.ko
+	sudo insmod $(SCI_IF_SRC)/sci_if_mod.ko local_adapter_no=0 remote_node_id=4 is_initiator=N
+	sudo insmod $(BUS_SRC)/dis_bus_mod.ko
+	sudo insmod $(DRV_SRC)/dis_driver_mod.ko
+	sudo insmod $(DEV_SRC)/dis_device_mod.ko
 	dmesg -t
 
-
-## Insmod SCI ##
-ins-dis_msq:
+res: dmesg-c
 	sudo insmod $(SCI_SRC)/dis_msq.ko
-
-ins-req-sci_if: ins-dis_msq
-	sudo insmod $(SCI_IF_SRC)/sci_if_mod.ko local_adapter_no=0 remote_node_id=4 is_initiator=N
-
-ins-res-sci_if: ins-dis_msq
 	sudo insmod $(SCI_IF_SRC)/sci_if_mod.ko local_adapter_no=0 remote_node_id=8 is_initiator=Y
-
-ins-req: dmesg-c ins-req-sci_if dmesg-p
-
-ins-res: dmesg-c ins-res-sci_if dmesg-p
-
-## Rmmod SCI ##
-rm-sci_if:
-	sudo rmmod sci_if_mod.ko
-
-rm-dis_msq: rm-sci_if
-	sudo rmmod dis_msq.ko
-
-rm-sci: dmesg-c rm-dis_msq dmesg-p
-
-## Insmod DIS ## 
-ins-dis_bus:
 	sudo insmod $(BUS_SRC)/dis_bus_mod.ko
-
-ins-dis_driver: ins-dis_bus
 	sudo insmod $(DRV_SRC)/dis_driver_mod.ko
-
-ins-dis_device: ins-dis_driver
 	sudo insmod $(DEV_SRC)/dis_device_mod.ko
+	dmesg -t
 
-ins-dis: dmesg-c ins-dis_device dmesg-p
-
-## Rmmod DIS ##
-rm-dis_device:
+rm: dmesg-c
 	sudo rmmod dis_device_mod.ko
-
-rm-dis_driver: rm-dis_device
 	sudo rmmod dis_driver_mod.ko
-
-rm-dis_bus: rm-dis_driver
 	sudo rmmod dis_bus_mod.ko
+	sudo rmmod sci_if_mod.ko
+	sudo rmmod dis_msq.ko
+	dmesg -t
 
-rm-dis: dmesg-c rm-dis_bus dmesg-p
+req-r: rm all req
+
+res-r: rm all res

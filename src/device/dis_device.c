@@ -21,37 +21,37 @@ static void dis_dev_release(struct device *dev)
 }
 
 struct device dis_dev = {
-	.init_name = DIS_ROPCIE_NAME,
+    .init_name = DIS_ROPCIE_NAME,
     .bus = &dis_bus_type,
-	.parent = &dis_bus_dev,
-	.release = dis_dev_release,
+    .parent = &dis_bus_dev,
+    .release = dis_dev_release,
 };
 
 static int __init dis_device_init(void)
 {
-	int ret;
+    int ret;
 
-	pr_devel(DIS_STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
-	ret = device_register(&dis_dev);
-	if(ret) {
-		pr_devel("dis_dev register: " DIS_STATUS_FAIL);
-		return -1;
-	}
-	pr_devel("dis_dev register: " DIS_STATUS_COMPLETE);
+    ret = device_register(&dis_dev);
+    if(ret) {
+        pr_devel("dis_dev register: " DIS_STATUS_FAIL);
+        return -1;
+    }
+    pr_devel("dis_dev register: " DIS_STATUS_COMPLETE);
 
-	pr_devel(DIS_STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 static void __exit dis_device_exit(void)
 {
-	pr_devel(DIS_STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
-	device_unregister(&dis_dev);
-	pr_devel(DIS_STATUS_COMPLETE);
+    device_unregister(&dis_dev);
+    pr_devel(DIS_STATUS_COMPLETE);
 
-	pr_devel(DIS_STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
 }
 
 module_init(dis_device_init);

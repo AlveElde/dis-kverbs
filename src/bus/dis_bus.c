@@ -14,7 +14,7 @@ MODULE_LICENSE("GPL");
 
 static int bus_match(struct device *dev, struct device_driver *driver)
 {
-	return !strncmp(dev_name(dev), driver->name, strlen(driver->name));	
+    return !strncmp(dev_name(dev), driver->name, strlen(driver->name)); 
 }
 
 struct bus_type dis_bus_type = {
@@ -29,13 +29,13 @@ static void bus_dev_release(struct device *dev)
 
 struct device dis_bus_dev = {
     .init_name = DIS_BUS_DEV_NAME,
-	.release = bus_dev_release,
+    .release = bus_dev_release,
 };
 
 static int __init dis_bus_init(void)
 {
-	int ret;
-	pr_devel(DIS_STATUS_START);
+    int ret;
+    pr_devel(DIS_STATUS_START);
 
     ret = bus_register(&dis_bus_type);
     if(ret) {
@@ -44,29 +44,29 @@ static int __init dis_bus_init(void)
     }
     pr_devel("dis_bus_type register: " DIS_STATUS_COMPLETE);
 
-	ret = device_register(&dis_bus_dev);
+    ret = device_register(&dis_bus_dev);
     if (ret) {
-		pr_devel("dis_bus_dev register: " DIS_STATUS_FAIL);
-		bus_unregister(&dis_bus_type);
+        pr_devel("dis_bus_dev register: " DIS_STATUS_FAIL);
+        bus_unregister(&dis_bus_type);
         return -1;
     }
-	pr_devel("dis_bus_dev register: " DIS_STATUS_COMPLETE);
+    pr_devel("dis_bus_dev register: " DIS_STATUS_COMPLETE);
 
-	pr_devel(DIS_STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
 static void __exit dis_bus_exit(void)
 {
-	pr_devel(DIS_STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
-	device_unregister(&dis_bus_dev);
-	pr_devel("dis_bus_dev unregister: " DIS_STATUS_COMPLETE);
+    device_unregister(&dis_bus_dev);
+    pr_devel("dis_bus_dev unregister: " DIS_STATUS_COMPLETE);
 
-	bus_unregister(&dis_bus_type);
-	pr_devel("dis_bus_type unregister: " DIS_STATUS_COMPLETE);
+    bus_unregister(&dis_bus_type);
+    pr_devel("dis_bus_type unregister: " DIS_STATUS_COMPLETE);
 
-	pr_devel(DIS_STATUS_COMPLETE);
+    pr_devel(DIS_STATUS_COMPLETE);
 }
 
 module_init(dis_bus_init);

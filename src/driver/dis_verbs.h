@@ -9,16 +9,16 @@
 
 #include "scilib.h"
 
-#define DIS_MAX_SGE 4
+#define DIS_WQE_MAX_SGE 4
 
 enum siw_cqe_flags {
-	DIS_CQE_FREE,
-	DIS_CQE_VALID
+    DIS_CQE_FREE,
+    DIS_CQE_VALID
 };
 
 enum siw_wqe_flags {
-	DIS_WQE_FREE,
-	DIS_WQE_VALID
+    DIS_WQE_FREE,
+    DIS_WQE_VALID
 };
 
 enum dis_wq_flag {
@@ -44,12 +44,12 @@ struct dis_dev {
 };
 
 struct dis_pd {
-	struct ib_pd    ibpd;
+    struct ib_pd    ibpd;
     struct dis_dev  *dev;
 };
 
 struct dis_ah {
-	struct ib_ah    ibah;
+    struct ib_ah    ibah;
     struct dis_dev  *dev;
 };
 
@@ -64,7 +64,7 @@ struct dis_cqe {
 };
 
 struct dis_cq {
-	struct ib_cq    ibcq;
+    struct ib_cq    ibcq;
     struct dis_dev  *dev;
     struct dis_cqe  *cqe_queue;
     // struct dis_dev      *dev;
@@ -95,7 +95,7 @@ struct sci_if_msq {
 };
 
 struct dis_wqe {
-    struct ib_sge sg_list[DIS_MAX_SGE];
+    struct ib_sge sg_list[DIS_WQE_MAX_SGE];
     
     u32 id;
     u16 flags;
@@ -127,13 +127,13 @@ struct dis_wq {
 };
 
 struct dis_qp {
-	struct ib_qp    ibqp;
+    struct ib_qp    ibqp;
     struct dis_dev  *dev;
     struct dis_wq   sq;
     struct dis_wq   rq;
 
     enum ib_sig_type    sq_sig_type;
-	enum ib_qp_type     type;
+    enum ib_qp_type     type;
     enum ib_qp_state    state;
 
     u32 l_qpn;
@@ -144,50 +144,50 @@ struct dis_qp {
 };
 
 struct dis_mr {
-	struct ib_mr    ibmr;
-	struct ib_umem  *ibumem;
-	struct dis_dev	*dev;
+    struct ib_mr    ibmr;
+    struct ib_umem  *ibumem;
+    struct dis_dev  *dev;
 };
 
 struct dis_ucontext {
-	struct ib_ucontext  ibucontext;
+    struct ib_ucontext  ibucontext;
     struct dis_dev      *dev;
 };
 
 // Custom structure conversion inline functions.
 static inline struct dis_dev *to_dis_dev(struct ib_device *ibdev)
 {
-	return ibdev ? container_of(ibdev, struct dis_dev, ibdev) : NULL;
+    return ibdev ? container_of(ibdev, struct dis_dev, ibdev) : NULL;
 }
 
 static inline struct dis_pd *to_dis_pd(struct ib_pd *ibpd)
 {
-	return ibpd ? container_of(ibpd, struct dis_pd, ibpd) : NULL;
+    return ibpd ? container_of(ibpd, struct dis_pd, ibpd) : NULL;
 }
 
 static inline struct dis_ah *to_dis_ah(struct ib_ah *ibah)
 {
-	return ibah ? container_of(ibah, struct dis_ah, ibah) : NULL;
+    return ibah ? container_of(ibah, struct dis_ah, ibah) : NULL;
 }
 
 static inline struct dis_qp *to_dis_qp(struct ib_qp *ibqp)
 {
-	return ibqp ? container_of(ibqp, struct dis_qp, ibqp) : NULL;
+    return ibqp ? container_of(ibqp, struct dis_qp, ibqp) : NULL;
 }
 
 static inline struct dis_cq *to_dis_cq(struct ib_cq *ibcq)
 {
-	return ibcq ? container_of(ibcq, struct dis_cq, ibcq) : NULL;
+    return ibcq ? container_of(ibcq, struct dis_cq, ibcq) : NULL;
 }
 
 static inline struct dis_mr *to_dis_mr(struct ib_mr *ibmr)
 {
-	return ibmr ? container_of(ibmr, struct dis_mr, ibmr) : NULL;
+    return ibmr ? container_of(ibmr, struct dis_mr, ibmr) : NULL;
 }
 
 static inline struct dis_ucontext *to_dis_ucontext(struct ib_ucontext *ibucontext)
 {
-	return ibucontext ? container_of(ibucontext, struct dis_ucontext, ibucontext) : NULL;
+    return ibucontext ? container_of(ibucontext, struct dis_ucontext, ibucontext) : NULL;
 }
 
 // Device verbs.
@@ -196,9 +196,9 @@ int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *dev_attr,
 int dis_query_port(struct ib_device *ibdev, u8 port,
                    struct ib_port_attr *port_attr);
 int dis_get_port_immutable(struct ib_device *ibdev, u8 port_num,
-				   struct ib_port_immutable *immutable);
+                   struct ib_port_immutable *immutable);
 int dis_query_pkey(struct ib_device *ibdev, u8 port, u16 index,
-			       u16 *pkey);
+                   u16 *pkey);
 
 // Protection Domain verbs.
 int dis_alloc_pd(struct ib_pd *ibpd, struct ib_udata *udata);

@@ -46,7 +46,6 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct sci_if_msg *msg)
             pr_devel(DIS_STATUS_COMPLETE);
             return IB_WC_SUCCESS;
         }
-        msleep(500);
     }
 
     pr_devel(DIS_STATUS_FAIL);
@@ -64,7 +63,6 @@ enum ib_wc_status dis_wq_consume_one_sqe(struct sci_if_msg *msg)
             pr_devel(DIS_STATUS_COMPLETE);
             return IB_WC_SUCCESS;
         }
-        msleep(500);
     }
 
     pr_devel(DIS_STATUS_FAIL);
@@ -91,7 +89,7 @@ int dis_wq_consume_all(struct dis_wq *wq)
         msg.msg     = (void *)(wqe->sg_list[0].addr); //TODO: Include all segments
         msg.size    = wqe->sg_list[0].length;
         msg.free    = &free;
-        msg.flags   = 0; //TODO: SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
+        msg.flags   = SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY;
 
         switch (wq->wq_type) {
         case DIS_RQ:
@@ -110,7 +108,6 @@ int dis_wq_consume_all(struct dis_wq *wq)
         dis_wq_post_cqe(wq, wqe, wc_status);
         wqe->flags = DIS_WQE_FREE;
         wq->wqe_get++;
-        return 0; //TODO: remove
     }
 
     pr_devel(DIS_STATUS_FAIL);
@@ -122,7 +119,7 @@ int dis_wq_init(struct dis_wq *wq)
     int ret, sleep_ms;
     pr_devel(DIS_STATUS_START);
 
-    sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
+    sleep_ms = DIS_QP_SLEEP_MS_INI;
     while (!kthread_should_stop()) {
         switch (wq->wq_type) {
         case DIS_RQ:
@@ -146,7 +143,7 @@ int dis_wq_init(struct dis_wq *wq)
             return -42;
         }
 
-        sleep_ms = min(sleep_ms + 10, DIS_QP_SLEEP_MS_MAX);
+        sleep_ms = min(sleep_ms + DIS_QP_SLEEP_MS_INC, DIS_QP_SLEEP_MS_MAX);
         msleep_interruptible(sleep_ms);
     }
 
@@ -213,7 +210,6 @@ int dis_wq_thread(void *wq_buf)
     }
 
     dis_wq_exit(wq);
-
     wq->wq_state = DIS_WQ_EXITED;
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -256,7 +252,6 @@ int dis_qp_notify(struct dis_wq *wq)
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
-
 
 void dis_qp_exit(struct dis_wq *wq)
 {

@@ -135,7 +135,7 @@ EXPORT_SYMBOL(sci_if_disconnect_msq);
 int sci_if_send_request(struct sci_if_msg *msg)
 {
     sci_error_t err;
-    pr_devel(DIS_STATUS_START);
+    // pr_devel(DIS_STATUS_START);
 
     err = SCILSendMsg(*(msg->msq),
                         msg->msg,
@@ -148,7 +148,7 @@ int sci_if_send_request(struct sci_if_msg *msg)
         pr_devel(DIS_STATUS_COMPLETE);
         return 0;
     case SCI_ERR_EWOULD_BLOCK:
-        pr_devel("SCI_ERR_EWOULD_BLOCK: " DIS_STATUS_FAIL);
+        // pr_devel("SCI_ERR_EWOULD_BLOCK: " DIS_STATUS_FAIL);
         return -42;
     case SCI_ERR_NOT_CONNECTED:
         pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);
@@ -163,7 +163,7 @@ EXPORT_SYMBOL(sci_if_send_request);
 int sci_if_receive_request(struct sci_if_msg *msg)
 {
     sci_error_t err;
-    pr_devel(DIS_STATUS_START);
+    // pr_devel(DIS_STATUS_START);
 
     err = SCILReceiveMsg(*(msg->msq),
                         msg->msg,
@@ -176,7 +176,7 @@ int sci_if_receive_request(struct sci_if_msg *msg)
         pr_devel(DIS_STATUS_COMPLETE);
         return 0;
     case SCI_ERR_EWOULD_BLOCK:
-        pr_devel("SCI_ERR_EWOULD_BLOCK");
+        // pr_devel("SCI_ERR_EWOULD_BLOCK");
         return -42;
     case SCI_ERR_NOT_CONNECTED:
         pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);

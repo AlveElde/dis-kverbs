@@ -12,18 +12,16 @@ int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *dev_attr,
 
     dev_attr->fw_ver               = 1;
     dev_attr->sys_image_guid       = 1234;
-    dev_attr->max_mr_size          = ~0ull;
-    dev_attr->page_size_cap        = 0xffff000; // 4KB-128MB
+    dev_attr->max_mr_size          = 0;
+    dev_attr->page_size_cap        = 0; // 4KB-128MB
     dev_attr->vendor_id            = 1234;
     dev_attr->vendor_part_id       = 1234;
-    dev_attr->hw_ver               = 1;
+    dev_attr->hw_ver               = 1234;
     dev_attr->max_qp               = 1234;
     dev_attr->max_qp_wr            = 1234;
-    dev_attr->device_cap_flags     = IB_DEVICE_PORT_ACTIVE_EVENT;
-    dev_attr->device_cap_flags     |= IB_DEVICE_LOCAL_DMA_LKEY;
-    dev_attr->device_cap_flags     |= IB_DEVICE_MEM_MGT_EXTENSIONS;  // Support FR
-    dev_attr->max_send_sge         = 1234;
-    dev_attr->max_recv_sge         = 1234;
+    dev_attr->device_cap_flags     = 0;
+    dev_attr->max_send_sge         = DIS_WQE_MAX_SGE;
+    dev_attr->max_recv_sge         = DIS_WQE_MAX_SGE;
     dev_attr->max_sge_rd           = 1;
     dev_attr->max_cq               = 1234;
     dev_attr->max_cqe              = 1234;
@@ -43,14 +41,11 @@ int dis_query_port(struct ib_device *ibdev, u8 port,
                     struct ib_port_attr *port_attr)
 {
     pr_devel(DIS_STATUS_START);
-    //port_attr->port_cap_flags   = IB_PORT_CM_SUP;
-    // port_attr->port_cap_flags   = IB_PORT_REINIT_SUP;
-    // port_attr->port_cap_flags   |= IB_PORT_DEVICE_MGMT_SUP;
-    // port_attr->port_cap_flags   |= IB_PORT_VENDOR_CLASS_SUP;
+
     port_attr->gid_tbl_len      = 1;
     port_attr->pkey_tbl_len     = 1;
     port_attr->max_vl_num       = 1;
-    port_attr->max_msg_sz       = 0x80000000;
+    port_attr->max_msg_sz       = 4096;
     port_attr->max_mtu          = 4096;
     port_attr->active_mtu       = 4096;
     port_attr->lid              = 0;
@@ -159,11 +154,11 @@ int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *init_attr,
     struct dis_dev *dev  = to_dis_dev(ibdev);
     pr_devel(DIS_STATUS_START);
 
-    cq->dev       = dev;
-    cq->cqe_get      = 0;
-    cq->cqe_put      = 0;
-    cq->cqe_max      = roundup_pow_of_two(init_attr->cqe);
-    cq->cqe_queue    = kzalloc(sizeof(struct dis_cqe) * cq->cqe_max, 
+    cq->dev         = dev;
+    cq->cqe_get     = 0;
+    cq->cqe_put     = 0;
+    cq->cqe_max     = roundup_pow_of_two(init_attr->cqe);
+    cq->cqe_queue   = kzalloc(sizeof(struct dis_cqe) * cq->cqe_max, 
                                 GFP_KERNEL);
     if (!cq->cqe_queue) {
         pr_devel(DIS_STATUS_FAIL);
@@ -242,30 +237,30 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
         goto create_qp_alloc_qp_err;
     }
 
-    qp->dev           = to_dis_dev(ibpd->device);
-    qp->sq_sig_type      = init_attr->sq_sig_type;
-    qp->type             = init_attr->qp_type;
-    qp->state            = IB_QPS_RESET;
-    qp->mtu              = ib_mtu_enum_to_int(IB_MTU_4096);
-    qp->l_qpn            = global_qpn++;
-    qp->event_handler    = init_attr->event_handler;
+    qp->dev             = to_dis_dev(ibpd->device);
+    qp->sq_sig_type     = init_attr->sq_sig_type;
+    qp->type            = init_attr->qp_type;
+    qp->state           = IB_QPS_RESET;
+    qp->mtu             = ib_mtu_enum_to_int(IB_MTU_4096);
+    qp->l_qpn           = global_qpn++;
+    qp->event_handler   = init_attr->event_handler;
 
-    qp->ibqp.pd          = ibpd;
-    qp->ibqp.send_cq     = init_attr->send_cq;
-    qp->ibqp.recv_cq     = init_attr->recv_cq;
-    qp->ibqp.srq         = init_attr->srq;
-    qp->ibqp.qp_type     = init_attr->qp_type;
-    qp->ibqp.qp_num      = qp->l_qpn;
+    qp->ibqp.pd         = ibpd;
+    qp->ibqp.send_cq    = init_attr->send_cq;
+    qp->ibqp.recv_cq    = init_attr->recv_cq;
+    qp->ibqp.srq        = init_attr->srq;
+    qp->ibqp.qp_type    = init_attr->qp_type;
+    qp->ibqp.qp_num     = qp->l_qpn;
 
-    qp->sq.qp         = qp;
-    qp->sq.cq         = to_dis_cq(init_attr->send_cq);
-    qp->sq.max_sge       = init_attr->cap.max_send_sge;
-    qp->sq.max_inline    = init_attr->cap.max_inline_data;
-    qp->sq.wqe_get       = 0;
-    qp->sq.wqe_put       = 0;
-    qp->sq.wq_type       = DIS_SQ;
-    qp->sq.wqe_max       = roundup_pow_of_two(init_attr->cap.max_send_wr);
-    qp->sq.wqe_queue     = kzalloc(sizeof(struct dis_wqe) * qp->sq.wqe_max, 
+    qp->sq.qp           = qp;
+    qp->sq.cq           = to_dis_cq(init_attr->send_cq);
+    qp->sq.max_sge      = init_attr->cap.max_send_sge;
+    qp->sq.max_inline   = init_attr->cap.max_inline_data;
+    qp->sq.wqe_get      = 0;
+    qp->sq.wqe_put      = 0;
+    qp->sq.wq_type      = DIS_SQ;
+    qp->sq.wqe_max      = roundup_pow_of_two(init_attr->cap.max_send_wr);
+    qp->sq.wqe_queue    = kzalloc(sizeof(struct dis_wqe) * qp->sq.wqe_max, 
                             GFP_KERNEL);
     if (!qp->sq.wqe_queue) {
         pr_devel(DIS_STATUS_FAIL);
@@ -273,15 +268,15 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
     }
     memset(qp->sq.wqe_queue, 0, sizeof(struct dis_wqe) * qp->sq.wqe_max);
 
-    qp->rq.qp         = qp;
-    qp->rq.cq         = to_dis_cq(init_attr->recv_cq);
-    qp->rq.max_sge       = init_attr->cap.max_recv_sge;
-    qp->rq.max_inline    = init_attr->cap.max_inline_data;
-    qp->rq.wqe_get       = 0;
-    qp->rq.wqe_put       = 0;
-    qp->rq.wq_type       = DIS_RQ;
-    qp->rq.wqe_max       = roundup_pow_of_two(init_attr->cap.max_recv_wr);
-    qp->rq.wqe_queue     = kzalloc(sizeof(struct dis_wqe) * qp->rq.wqe_max, 
+    qp->rq.qp           = qp;
+    qp->rq.cq           = to_dis_cq(init_attr->recv_cq);
+    qp->rq.max_sge      = init_attr->cap.max_recv_sge;
+    qp->rq.max_inline   = init_attr->cap.max_inline_data;
+    qp->rq.wqe_get      = 0;
+    qp->rq.wqe_put      = 0;
+    qp->rq.wq_type      = DIS_RQ;
+    qp->rq.wqe_max      = roundup_pow_of_two(init_attr->cap.max_recv_wr);
+    qp->rq.wqe_queue    = kzalloc(sizeof(struct dis_wqe) * qp->rq.wqe_max, 
                             GFP_KERNEL);
     if (!qp->rq.wqe_queue) {
         pr_devel(DIS_STATUS_FAIL);
@@ -326,11 +321,10 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 
         case IB_QPS_INIT:
             pr_devel("Modify QP state: INIT");
-
-            qp->rq.msq.max_msg_count = 16;//qp->rq.wqe_max;
-            qp->sq.msq.max_msg_count = 16;//qp->sq.wqe_max;
-            qp->rq.msq.max_msg_size = 256*sizeof(char);//qp->mtu;
-            qp->sq.msq.max_msg_size = 256*sizeof(char);//qp->mtu;
+            qp->rq.msq.max_msg_count    = qp->rq.wqe_max;
+            qp->sq.msq.max_msg_count    = qp->sq.wqe_max;
+            qp->rq.msq.max_msg_size     = qp->mtu;
+            qp->sq.msq.max_msg_size     = qp->mtu;
             break;
 
         case IB_QPS_RTR:
@@ -348,8 +342,8 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
             if (attr_mask & IB_QP_PATH_MTU) {
                 qp->mtu = ib_mtu_enum_to_int(attr->path_mtu);
 
-                // qp->rq.msq.max_msg_size = qp->mtu;
-                // qp->sq.msq.max_msg_size = qp->mtu;
+                qp->rq.msq.max_msg_size = qp->mtu;
+                qp->sq.msq.max_msg_size = qp->mtu;
             }
             
             ret = dis_qp_init(&qp->rq);
@@ -412,13 +406,13 @@ int dis_post_send(struct ib_qp *ibqp, const struct ib_send_wr *send_wr,
             return -42;
         }
 
-        sqe->num_sge = min(send_wr_iter->num_sge, DIS_MAX_SGE);
+        sqe->num_sge = min(send_wr_iter->num_sge, DIS_WQE_MAX_SGE);
         memcpy(sqe->sg_list, 
                 send_wr_iter->sg_list, 
                 sizeof(struct ib_sge) * sqe->num_sge);
-
         sqe->opcode = IB_WC_SEND;
         sqe->flags = DIS_WQE_VALID;
+
         qp->sq.wqe_put++;
         dis_qp_notify(&qp->sq);
         send_wr_iter = send_wr_iter->next;
@@ -445,13 +439,13 @@ int dis_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *recv_wr,
             return -42;
         }
 
-        rqe->num_sge = min(recv_wr_iter->num_sge, DIS_MAX_SGE);
+        rqe->num_sge = min(recv_wr_iter->num_sge, DIS_WQE_MAX_SGE);
         memcpy(rqe->sg_list,
                 recv_wr_iter->sg_list,
                 sizeof(struct ib_sge) * rqe->num_sge);
-
         rqe->opcode = IB_WC_RECV;
         rqe->flags = DIS_WQE_VALID;
+
         qp->rq.wqe_put++;
         dis_qp_notify(&qp->rq);
         recv_wr_iter = recv_wr_iter->next;
