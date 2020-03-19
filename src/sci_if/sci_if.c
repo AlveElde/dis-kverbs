@@ -43,7 +43,8 @@ int sci_if_create_msq(struct sci_if_msq *msq)
     }
 
     pr_devel("Targeting remote_node_id %d", remote_node_id);
-    pr_devel("Creating MSQ with l_msq_id: %d, r_msq_id: %d", l_msq_id, r_msq_id);
+    pr_devel("Creating MSQ with l_msq_id: %d, r_msq_id: %d, max_msg_count: %d, max_msg_size: %d", 
+                l_msq_id, r_msq_id, msq->max_msg_count, msq->max_msg_size);
     err = SCILCreateMsgQueue(&(msq->msq),
                                 local_adapter_no,
                                 remote_node_id, 
@@ -94,7 +95,8 @@ int sci_if_connect_msq(struct sci_if_msq *msq)
     }
 
     pr_devel("Targeting remote_node_id %d", remote_node_id);
-    pr_devel("Connecting MSQ with l_msq_id: %d, r_msq_id: %d", l_msq_id, r_msq_id);
+    pr_devel("Connecting MSQ with l_msq_id: %d, r_msq_id: %d, max_msg_count: %d, max_msg_size: %d", 
+                l_msq_id, r_msq_id, msq->max_msg_count, msq->max_msg_size);
     err = SCILConnectMsgQueue(&(msq->msq), 
                                 local_adapter_no, 
                                 remote_node_id, 

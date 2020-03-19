@@ -45,12 +45,12 @@ struct dis_dev {
 
 struct dis_pd {
 	struct ib_pd    ibpd;
-    struct dis_dev  *disdev;
+    struct dis_dev  *dev;
 };
 
 struct dis_ah {
 	struct ib_ah    ibah;
-    struct dis_dev  *disdev;
+    struct dis_dev  *dev;
 };
 
 struct dis_cqe {
@@ -65,9 +65,9 @@ struct dis_cqe {
 
 struct dis_cq {
 	struct ib_cq    ibcq;
-    struct dis_dev  *disdev;
+    struct dis_dev  *dev;
     struct dis_cqe  *cqe_queue;
-    // struct dis_dev      *disdev;
+    // struct dis_dev      *dev;
     spinlock_t      cqe_lock;
 
     u32 cqe_get;
@@ -105,9 +105,9 @@ struct dis_wqe {
 };
 
 struct dis_wq {
-    struct dis_qp       *disqp;
-    struct dis_cq       *discq;
-    struct sci_if_msq   dismsq;
+    struct dis_qp       *qp;
+    struct dis_cq       *cq;
+    struct sci_if_msq   msq;
     struct task_struct  *thread;
     struct dis_wqe      *wqe_queue;
 
@@ -128,7 +128,7 @@ struct dis_wq {
 
 struct dis_qp {
 	struct ib_qp    ibqp;
-    struct dis_dev  *disdev;
+    struct dis_dev  *dev;
     struct dis_wq   sq;
     struct dis_wq   rq;
 
@@ -146,12 +146,12 @@ struct dis_qp {
 struct dis_mr {
 	struct ib_mr    ibmr;
 	struct ib_umem  *ibumem;
-	struct dis_dev	*disdev;
+	struct dis_dev	*dev;
 };
 
 struct dis_ucontext {
 	struct ib_ucontext  ibucontext;
-    struct dis_dev      *disdev;
+    struct dis_dev      *dev;
 };
 
 // Custom structure conversion inline functions.
