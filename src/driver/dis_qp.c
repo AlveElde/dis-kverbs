@@ -37,19 +37,15 @@ int dis_wq_post_cqe(struct dis_wq *diswq,
 
 enum ib_wc_status dis_wq_consume_one_sqe(struct sci_if_msg *msg)
 {
-    int ret, sleep_ms;
+    int ret;
     pr_devel(DIS_STATUS_START);
 
-    sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
     while (!kthread_should_stop()) {
         ret = sci_if_receive_request(msg);
         if (!ret) {
             pr_devel(DIS_STATUS_COMPLETE);
             return IB_WC_SUCCESS;
         }
-
-        sleep_ms = min(sleep_ms + 10, DIS_QP_SLEEP_MS_MAX);
-        msleep_interruptible(sleep_ms);
     }
 
     pr_devel(DIS_STATUS_FAIL);
@@ -58,19 +54,15 @@ enum ib_wc_status dis_wq_consume_one_sqe(struct sci_if_msg *msg)
 
 enum ib_wc_status dis_wq_consume_one_rqe(struct sci_if_msg *msg)
 {
-    int ret, sleep_ms;
+    int ret;
     pr_devel(DIS_STATUS_START);
 
-    sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
     while (!kthread_should_stop()) {
         ret = sci_if_send_request(msg);
         if (!ret) {
             pr_devel(DIS_STATUS_COMPLETE);
             return IB_WC_SUCCESS;
         }
-
-        sleep_ms = min(sleep_ms + 10, DIS_QP_SLEEP_MS_MAX);
-        msleep_interruptible(sleep_ms);
     }
 
     pr_devel(DIS_STATUS_FAIL);
@@ -102,14 +94,10 @@ int dis_wq_consume_all(struct dis_wq *diswq)
         switch (diswq->wq_type) {
         case DIS_RQ:
             wc_status = dis_wq_consume_one_sqe(&msg);
-            // pr_devel("Successfully received message from requester: %s", 
-            //                 (char *)(wqe->sg_list[0].addr));
             break;
 
         case DIS_SQ:
             wc_status = dis_wq_consume_one_rqe(&msg);
-            // pr_devel("Successfully sent message to requester: %s", 
-            //                 (char *)(wqe->sg_list[0].addr));
             break;
 
         default:
@@ -131,13 +119,6 @@ int dis_wq_init(struct dis_wq *diswq)
 {
     int ret, sleep_ms;
     pr_devel(DIS_STATUS_START);
-
-    diswq->dismsq.l_qpn         = diswq->l_qpn;
-    diswq->dismsq.r_qpn         = diswq->r_qpn;
-    diswq->dismsq.max_msg_count = 16;
-    diswq->dismsq.max_msg_size  = 128;
-    diswq->dismsq.timeout       = 1234;
-    diswq->dismsq.flags         = 0;
 
     sleep_ms = DIS_QP_SLEEP_MS_INITIAL;
     while (!kthread_should_stop()) {
@@ -257,7 +238,7 @@ int dis_qp_init(struct dis_wq *diswq)
     return 0;
 }
 
-int dis_qp_post(struct dis_wq *diswq)
+int dis_qp_notify(struct dis_wq *diswq)
 {
     pr_devel(DIS_STATUS_START);
 

@@ -73,4 +73,3 @@ rm-dis_bus: rm-dis_driver
 	sudo rmmod dis_bus_mod.ko
 
 rm-dis: dmesg-c rm-dis_bus dmesg-p
-

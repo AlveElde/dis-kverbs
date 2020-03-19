@@ -89,9 +89,7 @@ struct sci_if_msq {
     u32 local_adapter_no; 
     u32 remote_node_id;
     u32 max_msg_count;    
-    u32 max_msg_size;  
-    u32 timeout;
-    u32 flags;
+    u32 max_msg_size;
     u32 l_qpn; 
     u32 r_qpn;
 };
@@ -124,8 +122,8 @@ struct dis_wq {
     u32 wqe_max;
     u32 max_sge;
     u32 max_inline;
-    u32 l_qpn;
-    u32 r_qpn;
+    // u32 l_qpn;
+    // u32 r_qpn;
 };
 
 struct dis_qp {
@@ -138,9 +136,9 @@ struct dis_qp {
 	enum ib_qp_type     type;
     enum ib_qp_state    state;
 
-    u32 mtu;
     u32 l_qpn;
     u32 r_qpn;
+    u32 mtu;
 
     void (*event_handler)(struct ib_event *, void *);
 };

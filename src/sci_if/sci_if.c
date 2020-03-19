@@ -11,8 +11,10 @@ MODULE_DESCRIPTION("SCI Lib Interface");
 MODULE_AUTHOR("Alve Elde");
 MODULE_LICENSE("GPL");
 
-static unsigned int local_adapter_no    = 99;
-static unsigned int remote_node_id      = 99;
+static unsigned int msq_flags           = 0; //SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY;
+static unsigned int timeout             = 1234;
+static unsigned int local_adapter_no    = 0;
+static unsigned int remote_node_id      = 0;
 static bool is_initiator                = true;
 
 module_param(local_adapter_no, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
@@ -28,29 +30,29 @@ MODULE_PARM_DESC(is_initiator, "");
 
 int sci_if_create_msq(struct sci_if_msq *msq)
 {
-    int lmsq_id, rmsq_id;
+    int l_msq_id, r_msq_id;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
     if (is_initiator) {
-        lmsq_id = msq->l_qpn * 2;
-        rmsq_id = msq->r_qpn * 2;
+        l_msq_id = msq->l_qpn * 2;
+        r_msq_id = msq->r_qpn * 2;
     } else {
-        lmsq_id = (msq->l_qpn * 2) + 1;
-        rmsq_id = (msq->r_qpn * 2) + 1;
+        l_msq_id = (msq->l_qpn * 2) + 1;
+        r_msq_id = (msq->r_qpn * 2) + 1;
     }
 
     pr_devel("Targeting remote_node_id %d", remote_node_id);
-    pr_devel("Creating MSQ with lmsq_id: %d, rmsq_id: %d", lmsq_id, rmsq_id);
+    pr_devel("Creating MSQ with l_msq_id: %d, r_msq_id: %d", l_msq_id, r_msq_id);
     err = SCILCreateMsgQueue(&(msq->msq),
                                 local_adapter_no,
                                 remote_node_id, 
-                                lmsq_id,
-                                rmsq_id,
+                                l_msq_id,
+                                r_msq_id,
                                 msq->max_msg_count,
                                 msq->max_msg_size,
-                                msq->timeout,
-                                msq->flags);
+                                timeout,
+                                msq_flags);
     switch (err)
     {
     case SCI_ERR_OK:
@@ -79,29 +81,29 @@ EXPORT_SYMBOL(sci_if_remove_msq);
 
 int sci_if_connect_msq(struct sci_if_msq *msq)
 {
-    int lmsq_id, rmsq_id;
+    int l_msq_id, r_msq_id;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
     if (is_initiator) {
-        lmsq_id = (msq->l_qpn * 2) + 1;
-        rmsq_id = (msq->r_qpn * 2) + 1;
+        l_msq_id = (msq->l_qpn * 2) + 1;
+        r_msq_id = (msq->r_qpn * 2) + 1;
     } else {
-        lmsq_id = msq->l_qpn * 2;
-        rmsq_id = msq->r_qpn * 2;
+        l_msq_id = msq->l_qpn * 2;
+        r_msq_id = msq->r_qpn * 2;
     }
 
     pr_devel("Targeting remote_node_id %d", remote_node_id);
-    pr_devel("Connecting MSQ with lmsq_id: %d, rmsq_id: %d", lmsq_id, rmsq_id);
+    pr_devel("Connecting MSQ with l_msq_id: %d, r_msq_id: %d", l_msq_id, r_msq_id);
     err = SCILConnectMsgQueue(&(msq->msq), 
                                 local_adapter_no, 
                                 remote_node_id, 
-                                lmsq_id,
-                                rmsq_id,
-                                msq->max_msg_count, 
-                                msq->max_msg_size, 
-                                msq->timeout, 
-                                msq->flags);
+                                l_msq_id,
+                                r_msq_id,
+                                msq->max_msg_count,
+                                msq->max_msg_size,
+                                timeout, 
+                                msq_flags);
     switch (err)
     {
     case SCI_ERR_OK:

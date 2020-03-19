@@ -8,7 +8,7 @@
 #define DIS_QP_SLEEP_MS_INCREASE    10
 
 int dis_qp_init(struct dis_wq *diswq);
-int dis_qp_post(struct dis_wq *diswq);
+int dis_qp_notify(struct dis_wq *diswq);
 void dis_qp_exit(struct dis_wq *diswq);
 
 #endif /* __DIS_QP_H__ */
