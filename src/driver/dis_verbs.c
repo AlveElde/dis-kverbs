@@ -331,17 +331,15 @@ int dis_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
             pr_devel("Modify QP state: RTR");
             if (attr_mask & IB_QP_DEST_QPN) {
                 // qp->r_qpn    = attr->dest_qp_num;
-                qp->r_qpn = qp->l_qpn;
-
-                qp->rq.msq.l_qpn = qp->l_qpn;
-                qp->rq.msq.r_qpn = qp->r_qpn;
-                qp->sq.msq.l_qpn = qp->l_qpn;
-                qp->sq.msq.r_qpn = qp->r_qpn;
+                qp->r_qpn           = qp->l_qpn;
+                qp->rq.msq.l_qpn    = qp->l_qpn;
+                qp->rq.msq.r_qpn    = qp->r_qpn;
+                qp->sq.msq.l_qpn    = qp->l_qpn;
+                qp->sq.msq.r_qpn    = qp->r_qpn;
             }
             
             if (attr_mask & IB_QP_PATH_MTU) {
                 qp->mtu = ib_mtu_enum_to_int(attr->path_mtu);
-
                 qp->rq.msq.max_msg_size = qp->mtu;
                 qp->sq.msq.max_msg_size = qp->mtu;
             }

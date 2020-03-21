@@ -12,7 +12,7 @@ MODULE_AUTHOR("Alve Elde");
 MODULE_LICENSE("GPL");
 
 static unsigned int msq_flags           = 0; //SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY;
-static unsigned int timeout             = 1234;
+static unsigned int timeout             = 0xffffffff;
 static unsigned int local_adapter_no    = 0;
 static unsigned int remote_node_id      = 0;
 static bool is_initiator                = true;
@@ -132,51 +132,82 @@ void sci_if_disconnect_msq(struct sci_if_msq *msq)
 }
 EXPORT_SYMBOL(sci_if_disconnect_msq);
 
-int sci_if_send_request(struct sci_if_msg *msg)
+// int sci_if_send_msg(struct sci_if_msg *msg)
+// {
+//     sci_error_t err;
+//     // pr_devel(DIS_STATUS_START);
+
+//     err = SCILSendMsg(*(msg->msq),
+//                         msg->msg,
+//                         msg->size,
+//                         msg->free,
+//                         msg->flags);
+//     switch (err)
+//     {
+//     case SCI_ERR_OK:
+//         pr_devel(DIS_STATUS_COMPLETE);
+//         return 0;
+//     case SCI_ERR_EWOULD_BLOCK:
+//         // pr_devel("SCI_ERR_EWOULD_BLOCK: " DIS_STATUS_FAIL);
+//         return -42;
+//     case SCI_ERR_NOT_CONNECTED:
+//         pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);
+//         return -42;
+//     default:
+//         pr_devel("Unknown error code: " DIS_STATUS_FAIL);
+//         return -42;
+//     }
+// }
+// EXPORT_SYMBOL(sci_if_send_msg);
+
+int sci_if_send_v_msg(struct sci_if_v_msg *msg)
 {
     sci_error_t err;
-    // pr_devel(DIS_STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
-    err = SCILSendMsg(*(msg->msq),
-                        msg->msg,
-                        msg->size,
+    err = SCILSendVMsg(*(msg->msq),
+                        &msg->msg,
+                        *(msg->size),
                         msg->free,
-                        msg->flags);
+                        SCIL_FLAG_MSG_FLUSH | SCIL_FLAG_MESSAGE_MODE);
     switch (err)
     {
     case SCI_ERR_OK:
         pr_devel(DIS_STATUS_COMPLETE);
         return 0;
     case SCI_ERR_EWOULD_BLOCK:
-        // pr_devel("SCI_ERR_EWOULD_BLOCK: " DIS_STATUS_FAIL);
+        pr_devel("SCI_ERR_EWOULD_BLOCK: " DIS_STATUS_FAIL);
         return -42;
     case SCI_ERR_NOT_CONNECTED:
         pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);
+        return -42;
+    case SCI_ERR_OUT_OF_RANGE:
+        pr_devel("SCI_ERR_OUT_OF_RANGE: " DIS_STATUS_FAIL);
         return -42;
     default:
         pr_devel("Unknown error code: " DIS_STATUS_FAIL);
         return -42;
     }
 }
-EXPORT_SYMBOL(sci_if_send_request);
+EXPORT_SYMBOL(sci_if_send_v_msg);
 
-int sci_if_receive_request(struct sci_if_msg *msg)
+int sci_if_receive_v_msg(struct sci_if_v_msg *msg)
 {
     sci_error_t err;
-    // pr_devel(DIS_STATUS_START);
+    pr_devel(DIS_STATUS_START);
 
-    err = SCILReceiveMsg(*(msg->msq),
-                        msg->msg,
+    err = SCILReceiveVMsg(*(msg->msq),
+                        &msg->msg,
                         msg->size,
                         msg->free,
-                        msg->flags);
+                        SCIL_FLAG_MESSAGE_MODE);
     switch (err)
     {
     case SCI_ERR_OK:
         pr_devel(DIS_STATUS_COMPLETE);
         return 0;
     case SCI_ERR_EWOULD_BLOCK:
-        // pr_devel("SCI_ERR_EWOULD_BLOCK");
+        pr_devel("SCI_ERR_EWOULD_BLOCK");
         return -42;
     case SCI_ERR_NOT_CONNECTED:
         pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);
@@ -184,12 +215,46 @@ int sci_if_receive_request(struct sci_if_msg *msg)
     case SCI_ERR_ILLEGAL_PARAMETER:
         pr_devel("SCI_ERR_ILLEGAL_PARAMETER: " DIS_STATUS_FAIL);
         return -42;
+    case SCI_ERR_OUT_OF_RANGE:
+        pr_devel("SCI_ERR_OUT_OF_RANGE: " DIS_STATUS_FAIL);
+        return -42;
     default:
         pr_devel("Unknown error code: " DIS_STATUS_FAIL);
         return -42;
     }
 }
-EXPORT_SYMBOL(sci_if_receive_request);
+EXPORT_SYMBOL(sci_if_receive_v_msg);
+
+// int sci_if_receive_msg(struct sci_if_msg *msg)
+// {
+//     sci_error_t err;
+//     // pr_devel(DIS_STATUS_START);
+
+//     err = SCILReceiveMsg(*(msg->msq),
+//                         msg->msg,
+//                         msg->size,
+//                         msg->free,
+//                         msg->flags);
+//     switch (err)
+//     {
+//     case SCI_ERR_OK:
+//         pr_devel(DIS_STATUS_COMPLETE);
+//         return 0;
+//     case SCI_ERR_EWOULD_BLOCK:
+//         // pr_devel("SCI_ERR_EWOULD_BLOCK");
+//         return -42;
+//     case SCI_ERR_NOT_CONNECTED:
+//         pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);
+//         return -42;
+//     case SCI_ERR_ILLEGAL_PARAMETER:
+//         pr_devel("SCI_ERR_ILLEGAL_PARAMETER: " DIS_STATUS_FAIL);
+//         return -42;
+//     default:
+//         pr_devel("Unknown error code: " DIS_STATUS_FAIL);
+//         return -42;
+//     }
+// }
+// EXPORT_SYMBOL(sci_if_receive_msg);
 
 static int __init sci_if_init(void)
 {

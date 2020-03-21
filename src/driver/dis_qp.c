@@ -12,6 +12,8 @@ int dis_wq_post_cqe(struct dis_wq *wq,
     struct dis_cq* cq = wq->cq;
     struct dis_cqe* cqe;
     pr_devel(DIS_STATUS_START);
+
+    // TODO: Make an individual cqe lock?
     spin_lock_irqsave(&cq->cqe_lock, flags);
 
     cqe = cq->cqe_queue + (cq->cqe_put % cq->cqe_max);
@@ -35,16 +37,23 @@ int dis_wq_post_cqe(struct dis_wq *wq,
     return 0;
 }
 
-enum ib_wc_status dis_wq_consume_one_rqe(struct sci_if_msg *msg)
+enum ib_wc_status dis_wq_consume_one_rqe(struct sci_if_v_msg *msg)
 {
-    int ret;
+    int ret, size_left;
     pr_devel(DIS_STATUS_START);
 
+    size_left = *(msg->size);
     while (!kthread_should_stop()) {
-        ret = sci_if_receive_request(msg);
+        ret = sci_if_receive_v_msg(msg);
+
         if (!ret) {
-            pr_devel(DIS_STATUS_COMPLETE);
-            return IB_WC_SUCCESS;
+            // msg->size is only set on a successful receive
+            size_left -= *(msg->size);
+            if(size_left == 0) {
+                pr_devel(DIS_STATUS_COMPLETE);
+                return IB_WC_SUCCESS;
+            }
+            *(msg->size) = size_left;
         }
     }
 
@@ -52,13 +61,13 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct sci_if_msg *msg)
     return IB_WC_RESP_TIMEOUT_ERR;
 }
 
-enum ib_wc_status dis_wq_consume_one_sqe(struct sci_if_msg *msg)
+enum ib_wc_status dis_wq_consume_one_sqe(struct sci_if_v_msg *msg)
 {
     int ret;
     pr_devel(DIS_STATUS_START);
 
     while (!kthread_should_stop()) {
-        ret = sci_if_send_request(msg);
+        ret = sci_if_send_v_msg(msg);
         if (!ret) {
             pr_devel(DIS_STATUS_COMPLETE);
             return IB_WC_SUCCESS;
@@ -71,9 +80,10 @@ enum ib_wc_status dis_wq_consume_one_sqe(struct sci_if_msg *msg)
 
 int dis_wq_consume_all(struct dis_wq *wq)
 {
-    int free;
+    int i, size, free;
     struct dis_wqe *wqe;
-    struct sci_if_msg msg;
+    struct sci_if_v_msg msg;
+    struct iovec iov[DIS_WQE_MAX_SGE];
     enum ib_wc_status wc_status;
     pr_devel(DIS_STATUS_START);
 
@@ -85,12 +95,21 @@ int dis_wq_consume_all(struct dis_wq *wq)
             return 0;
         }
 
-        msg.msq     = &wq->msq.msq;
-        msg.msg     = (void *)(wqe->sg_list[0].addr); //TODO: Include all segments
-        msg.size    = wqe->sg_list[0].length;
-        msg.free    = &free;
-        msg.flags   = SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY;
+        size = 0;
+        for (i = 0; i < wqe->num_sge; i++) {
+            iov[i].iov_base = (void *)(wqe->sg_list[i].addr);
+            iov[i].iov_len  = (size_t)(wqe->sg_list[i].length);
+            size            += wqe->sg_list[i].length;
+        }
 
+        msg.msq             = &wq->msq.msq;
+        msg.free            = &free;
+        msg.msg.iov         = iov;
+        msg.msg.iovlen      = wqe->num_sge;
+        msg.size            = &size;
+        msg.msg.cmsg_valid  = 0;
+        msg.msg.page        = NULL;
+        
         switch (wq->wq_type) {
         case DIS_RQ:
             wc_status = dis_wq_consume_one_rqe(&msg);
@@ -147,8 +166,8 @@ int dis_wq_init(struct dis_wq *wq)
         msleep_interruptible(sleep_ms);
     }
 
-    pr_devel(DIS_STATUS_FAIL);
-    return -42;
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
 }
 
 void dis_wq_exit(struct dis_wq *wq)

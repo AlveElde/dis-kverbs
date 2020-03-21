@@ -54,54 +54,58 @@ struct dis_ah {
 };
 
 struct dis_cqe {
-    struct ib_qp *ibqp;
-
-    u32 id;
-    u16 flags;
-    u16 status;
-    u16 opcode;
-    u16 byte_len;
+    struct ib_qp    *ibqp;
+    u32             id;
+    u16             flags;
+    u16             status;
+    u16             opcode;
+    u16             byte_len;
 };
 
 struct dis_cq {
     struct ib_cq    ibcq;
     struct dis_dev  *dev;
     struct dis_cqe  *cqe_queue;
-    // struct dis_dev      *dev;
     spinlock_t      cqe_lock;
+    u32             cqe_get;
+    u32             cqe_put;
+    u32             cqe_max;
+};
 
-    u32 cqe_get;
-    u32 cqe_put;
-    u32 cqe_max;
+struct sci_if_v_msg {
+    sci_msq_queue_t *msq;
+    sci_msg_t       msg;    
+    u32             *size;
+    u32             *free;
+    u32             flags;
 };
 
 struct sci_if_msg {
     sci_msq_queue_t *msq;
     void            *msg;    
-    u32    size;
-    u32    *free;
-    u32    flags;
+    u32             size;
+    u32             *free;
+    // u32             flags;
 };
 
 struct sci_if_msq {
     sci_msq_queue_t msq;
-
-    u32 local_adapter_no; 
-    u32 remote_node_id;
-    u32 max_msg_count;    
-    u32 max_msg_size;
-    u32 l_qpn; 
-    u32 r_qpn;
+    u32             local_adapter_no; 
+    u32             remote_node_id;
+    u32             max_msg_count;    
+    u32             max_msg_size;
+    u32             l_qpn; 
+    u32             r_qpn;
 };
 
+//TODO: Replace this with sci_if_v_msg?
 struct dis_wqe {
-    struct ib_sge sg_list[DIS_WQE_MAX_SGE];
-    
-    u32 id;
-    u16 flags;
-    u16 num_sge;
-    u16 opcode;
-    u16 byte_len;
+    struct ib_sge   sg_list[DIS_WQE_MAX_SGE];
+    u32             id;
+    u16             flags;
+    u16             num_sge;
+    u16             opcode;
+    u16             byte_len;
 };
 
 struct dis_wq {
@@ -110,36 +114,28 @@ struct dis_wq {
     struct sci_if_msq   msq;
     struct task_struct  *thread;
     struct dis_wqe      *wqe_queue;
-
-    wait_queue_head_t wait_queue;
-
+    wait_queue_head_t   wait_queue;
     enum dis_wq_flag    wq_flag;
     enum dis_wq_status  wq_state;
     enum dis_wq_type    wq_type;
-
-    u32 wqe_get;
-    u32 wqe_put;
-    u32 wqe_max;
-    u32 max_sge;
-    u32 max_inline;
-    // u32 l_qpn;
-    // u32 r_qpn;
+    u32                 wqe_get;
+    u32                 wqe_put;
+    u32                 wqe_max;
+    u32                 max_sge;
+    u32                 max_inline;
 };
 
 struct dis_qp {
-    struct ib_qp    ibqp;
-    struct dis_dev  *dev;
-    struct dis_wq   sq;
-    struct dis_wq   rq;
-
+    struct ib_qp        ibqp;
+    struct dis_dev      *dev;
+    struct dis_wq       sq;
+    struct dis_wq       rq;
     enum ib_sig_type    sq_sig_type;
     enum ib_qp_type     type;
     enum ib_qp_state    state;
-
-    u32 l_qpn;
-    u32 r_qpn;
-    u32 mtu;
-
+    u32                 l_qpn;
+    u32                 r_qpn;
+    u32                 mtu;
     void (*event_handler)(struct ib_event *, void *);
 };
 
