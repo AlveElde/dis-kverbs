@@ -12,7 +12,7 @@ MODULE_AUTHOR("Alve Elde");
 MODULE_LICENSE("GPL");
 
 static unsigned int msq_flags           = 0; //SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY;
-static unsigned int timeout             = 0xffffffff;
+static unsigned int timeout             = 0; // Not used
 static unsigned int local_adapter_no    = 0;
 static unsigned int remote_node_id      = 0;
 static bool is_initiator                = true;
@@ -28,30 +28,30 @@ MODULE_PARM_DESC(is_initiator, "");
 #define SCIL_INIT_FLAGS 0
 #define SCIL_EXIT_FLAGS 0
 
-int sci_if_create_msq(struct sci_if_msq *msq)
+int sci_if_create_msq(struct dis_wq *wq)
 {
     int l_msq_id, r_msq_id;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
     if (is_initiator) {
-        l_msq_id = msq->l_qpn * 2;
-        r_msq_id = msq->r_qpn * 2;
+        l_msq_id = wq->l_qpn * 2;
+        r_msq_id = wq->r_qpn * 2;
     } else {
-        l_msq_id = (msq->l_qpn * 2) + 1;
-        r_msq_id = (msq->r_qpn * 2) + 1;
+        l_msq_id = (wq->l_qpn * 2) + 1;
+        r_msq_id = (wq->r_qpn * 2) + 1;
     }
 
     pr_devel("Targeting remote_node_id %d", remote_node_id);
-    pr_devel("Creating MSQ with l_msq_id: %d, r_msq_id: %d, max_msg_count: %d, max_msg_size: %d", 
-                l_msq_id, r_msq_id, msq->max_msg_count, msq->max_msg_size);
-    err = SCILCreateMsgQueue(&(msq->msq),
+    pr_devel("Creating MSQ with l_msq_id: %d, r_msq_id: %d, wqe_max: %d, mtu: %d", 
+                l_msq_id, r_msq_id, wq->wqe_max, wq->mtu);
+    err = SCILCreateMsgQueue(&(wq->sci_msq),
                                 local_adapter_no,
-                                remote_node_id, 
+                                remote_node_id,
                                 l_msq_id,
                                 r_msq_id,
-                                msq->max_msg_count,
-                                msq->max_msg_size,
+                                wq->wqe_max,
+                                wq->mtu,
                                 timeout,
                                 msq_flags);
     switch (err)
@@ -72,38 +72,38 @@ int sci_if_create_msq(struct sci_if_msq *msq)
 }
 EXPORT_SYMBOL(sci_if_create_msq);
 
-void sci_if_remove_msq(struct sci_if_msq *msq)
+void sci_if_remove_msq(struct dis_wq *wq)
 {
     pr_devel(DIS_STATUS_START);
-    SCILRemoveMsgQueue(&msq->msq, 0);
+    SCILRemoveMsgQueue(&wq->sci_msq, 0);
     pr_devel(DIS_STATUS_COMPLETE);
 }
 EXPORT_SYMBOL(sci_if_remove_msq);
 
-int sci_if_connect_msq(struct sci_if_msq *msq)
+int sci_if_connect_msq(struct dis_wq *wq)
 {
     int l_msq_id, r_msq_id;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
     if (is_initiator) {
-        l_msq_id = (msq->l_qpn * 2) + 1;
-        r_msq_id = (msq->r_qpn * 2) + 1;
+        l_msq_id = (wq->l_qpn * 2) + 1;
+        r_msq_id = (wq->r_qpn * 2) + 1;
     } else {
-        l_msq_id = msq->l_qpn * 2;
-        r_msq_id = msq->r_qpn * 2;
+        l_msq_id = wq->l_qpn * 2;
+        r_msq_id = wq->r_qpn * 2;
     }
 
     pr_devel("Targeting remote_node_id %d", remote_node_id);
-    pr_devel("Connecting MSQ with l_msq_id: %d, r_msq_id: %d, max_msg_count: %d, max_msg_size: %d", 
-                l_msq_id, r_msq_id, msq->max_msg_count, msq->max_msg_size);
-    err = SCILConnectMsgQueue(&(msq->msq), 
+    pr_devel("Connecting MSQ with l_msq_id: %d, r_msq_id: %d, wqe_max: %d, mtu: %d", 
+                l_msq_id, r_msq_id, wq->wqe_max, wq->mtu);
+    err = SCILConnectMsgQueue(&(wq->sci_msq), 
                                 local_adapter_no, 
                                 remote_node_id, 
                                 l_msq_id,
                                 r_msq_id,
-                                msq->max_msg_count,
-                                msq->max_msg_size,
+                                wq->wqe_max,
+                                wq->mtu,
                                 timeout, 
                                 msq_flags);
     switch (err)
@@ -124,23 +124,24 @@ int sci_if_connect_msq(struct sci_if_msq *msq)
 }
 EXPORT_SYMBOL(sci_if_connect_msq);
 
-void sci_if_disconnect_msq(struct sci_if_msq *msq)
+void sci_if_disconnect_msq(struct dis_wq *wq)
 {
     pr_devel(DIS_STATUS_START);
-    SCILDisconnectMsgQueue(&msq->msq, 0);
+    SCILDisconnectMsgQueue(&wq->sci_msq, 0);
     pr_devel(DIS_STATUS_COMPLETE);
 }
 EXPORT_SYMBOL(sci_if_disconnect_msq);
 
-int sci_if_send_v_msg(struct sci_if_v_msg *msg)
+int sci_if_send_v_msg(struct dis_wqe *wqe)
 {
+    int free;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
-    err = SCILSendVMsg(*(msg->msq),
-                        &msg->msg,
-                        *(msg->size),
-                        msg->free,
+    err = SCILSendVMsg(*(wqe->sci_msq),
+                        &wqe->sci_msg,
+                        wqe->byte_len,
+                        &free,
                         SCIL_FLAG_MSG_FLUSH | SCIL_FLAG_MESSAGE_MODE);
     switch (err)
     {
@@ -163,15 +164,16 @@ int sci_if_send_v_msg(struct sci_if_v_msg *msg)
 }
 EXPORT_SYMBOL(sci_if_send_v_msg);
 
-int sci_if_receive_v_msg(struct sci_if_v_msg *msg)
+int sci_if_receive_v_msg(struct dis_wqe *wqe)
 {
+    int free;
     sci_error_t err;
     pr_devel(DIS_STATUS_START);
 
-    err = SCILReceiveVMsg(*(msg->msq),
-                        &msg->msg,
-                        msg->size,
-                        msg->free,
+    err = SCILReceiveVMsg(*(wqe->sci_msq),
+                        &wqe->sci_msg,
+                        &wqe->byte_len,
+                        &free,
                         SCIL_FLAG_MESSAGE_MODE);
     switch (err)
     {

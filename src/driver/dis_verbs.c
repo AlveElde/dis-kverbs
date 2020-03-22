@@ -271,7 +271,7 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
 
     // qp->rq.qp           = qp;
     qp->rq.cq           = to_dis_cq(init_attr->recv_cq);
-    qp->rq.sge_max       = init_attr->cap.max_recv_sge;
+    qp->rq.sge_max      = init_attr->cap.max_recv_sge;
     qp->rq.inline_max   = init_attr->cap.max_inline_data;
     qp->rq.wqe_get      = 0;
     qp->rq.wqe_put      = 0;
@@ -325,27 +325,26 @@ int dis_modify_qp(struct ib_qp *ibqp,
 
         case IB_QPS_INIT:
             pr_devel("Modify QP state: INIT");
-            qp->rq.msq.max_msg_count    = qp->rq.wqe_max;
-            qp->sq.msq.max_msg_count    = qp->sq.wqe_max;
-            qp->rq.msq.max_msg_size     = qp->mtu;
-            qp->sq.msq.max_msg_size     = qp->mtu;
+            qp->rq.mtu = qp->mtu;
+            qp->sq.mtu = qp->mtu;
             break;
 
         case IB_QPS_RTR:
             pr_devel("Modify QP state: RTR");
             if (attr_mask & IB_QP_DEST_QPN) {
                 // qp->r_qpn    = attr->dest_qp_num;
-                qp->r_qpn           = qp->l_qpn;
-                qp->rq.msq.l_qpn    = qp->l_qpn;
-                qp->rq.msq.r_qpn    = qp->r_qpn;
-                qp->sq.msq.l_qpn    = qp->l_qpn;
-                qp->sq.msq.r_qpn    = qp->r_qpn;
+                qp->r_qpn       = qp->l_qpn;
+    
+                qp->rq.l_qpn    = qp->l_qpn;
+                qp->rq.r_qpn    = qp->r_qpn;
+                qp->sq.l_qpn    = qp->l_qpn;
+                qp->sq.r_qpn    = qp->r_qpn;
             }
             
             if (attr_mask & IB_QP_PATH_MTU) {
-                qp->mtu = ib_mtu_enum_to_int(attr->path_mtu);
-                qp->rq.msq.max_msg_size = qp->mtu;
-                qp->sq.msq.max_msg_size = qp->mtu;
+                qp->mtu     = ib_mtu_enum_to_int(attr->path_mtu);
+                qp->rq.mtu  = qp->mtu;
+                qp->sq.mtu  = qp->mtu;
             }
             
             ret = dis_qp_init(&qp->rq);
@@ -395,6 +394,7 @@ int dis_post_send(struct ib_qp *ibqp,
                     const struct ib_send_wr *send_wr,
                     const struct ib_send_wr **bad_wr)
 {
+    int i;
     struct dis_qp *qp = to_dis_qp(ibqp);
     struct dis_wqe *sqe;
     const struct ib_send_wr *send_wr_iter;
@@ -409,12 +409,22 @@ int dis_post_send(struct ib_qp *ibqp,
             return -42;
         }
 
-        sqe->sge_count = min(send_wr_iter->num_sge, DIS_WQE_SGE_MAX);
-        memcpy(sqe->sg_list, 
-                send_wr_iter->sg_list, 
-                sizeof(struct ib_sge) * sqe->sge_count);
-        sqe->opcode = IB_WC_SEND;
         sqe->valid = 1;
+        sqe->opcode = IB_WC_SEND;
+        sqe->sci_msq    = &qp->sq.sci_msq;
+
+        sqe->sci_msg.cmsg_valid = 0;
+        sqe->sci_msg.page       = NULL;
+        sqe->sci_msg.iov        = sqe->iov;
+        sqe->sci_msg.iovlen     = min(send_wr_iter->num_sge, DIS_WQE_SGE_MAX);
+
+        sqe->byte_len = 0;
+        for (i = 0; i < sqe->sci_msg.iovlen; i++) {
+            sqe->iov[i].iov_base    = (void *)(send_wr_iter->sg_list[i].addr);
+            sqe->iov[i].iov_len     = (size_t)(send_wr_iter->sg_list[i].length);
+            sqe->byte_len           += send_wr_iter->sg_list[i].length;
+            sqe->lkey[i]            = send_wr_iter->sg_list[i].lkey;
+        }
 
         qp->sq.wqe_put++;
         dis_qp_notify(&qp->sq);
@@ -429,6 +439,7 @@ int dis_post_recv(struct ib_qp *ibqp,
                     const struct ib_recv_wr *recv_wr,
                     const struct ib_recv_wr **bad_wr)
 {
+    int i;
     struct dis_qp *qp = to_dis_qp(ibqp);
     struct dis_wqe *rqe;
     const struct ib_recv_wr *recv_wr_iter;
@@ -443,12 +454,22 @@ int dis_post_recv(struct ib_qp *ibqp,
             return -42;
         }
 
-        rqe->sge_count = min(recv_wr_iter->num_sge, DIS_WQE_SGE_MAX);
-        memcpy(rqe->sg_list,
-                recv_wr_iter->sg_list,
-                sizeof(struct ib_sge) * rqe->sge_count);
-        rqe->opcode = IB_WC_RECV;
-        rqe->valid = 1;
+        rqe->valid      = 1;
+        rqe->opcode     = IB_WC_RECV;
+        rqe->sci_msq    = &qp->rq.sci_msq;
+
+        rqe->sci_msg.cmsg_valid = 0;
+        rqe->sci_msg.page       = NULL;
+        rqe->sci_msg.iov        = rqe->iov;
+        rqe->sci_msg.iovlen     = min(recv_wr_iter->num_sge, DIS_WQE_SGE_MAX);
+
+        rqe->byte_len = 0;
+        for (i = 0; i < rqe->sci_msg.iovlen; i++) {
+            rqe->iov[i].iov_base    = (void *)(recv_wr_iter->sg_list[i].addr);
+            rqe->iov[i].iov_len     = (size_t)(recv_wr_iter->sg_list[i].length);
+            rqe->byte_len           += recv_wr_iter->sg_list[i].length;
+            rqe->lkey[i]            = recv_wr_iter->sg_list[i].lkey;
+        }
 
         qp->rq.wqe_put++;
         dis_qp_notify(&qp->rq);
@@ -524,7 +545,7 @@ int dis_post_srq_recv(struct ib_srq *ibsrq,
                         const struct ib_recv_wr *recv_wr,
                         const struct ib_recv_wr **bad_wr)
 {
-
+    int i;
     unsigned long flags;
     struct dis_srq *srq = to_dis_srq(ibsrq);
     struct dis_wqe *rqe;
@@ -542,12 +563,22 @@ int dis_post_srq_recv(struct ib_srq *ibsrq,
             return -42;
         }
 
-        rqe->sge_count = min(recv_wr_iter->num_sge, DIS_WQE_SGE_MAX);
-        memcpy(rqe->sg_list,
-                recv_wr_iter->sg_list,
-                sizeof(struct ib_sge) * rqe->sge_count);
-        rqe->opcode = IB_WC_RECV;
-        rqe->valid = 1;
+        rqe->valid      = 1;
+        rqe->opcode     = IB_WC_RECV;
+        // rqe->sci_msq    = &qp->rq.sci_msq;
+
+        rqe->sci_msg.cmsg_valid = 0;
+        rqe->sci_msg.page       = NULL;
+        rqe->sci_msg.iov        = rqe->iov;
+        rqe->sci_msg.iovlen     = min(recv_wr_iter->num_sge, DIS_WQE_SGE_MAX);
+
+        rqe->byte_len = 0;
+        for (i = 0; i < rqe->sci_msg.iovlen; i++) {
+            rqe->iov[i].iov_base    = (void *)(recv_wr_iter->sg_list[i].addr);
+            rqe->iov[i].iov_len     = (size_t)(recv_wr_iter->sg_list[i].length);
+            rqe->byte_len       += recv_wr_iter->sg_list[i].length;
+            rqe->lkey[i]            = recv_wr_iter->sg_list[i].lkey;
+        }
 
         srq->rq.wqe_put++;
         dis_qp_notify(&srq->rq);

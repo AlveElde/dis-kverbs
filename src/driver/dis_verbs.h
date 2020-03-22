@@ -62,38 +62,13 @@ struct dis_cq {
     u32             cqe_max;
 };
 
-struct sci_if_v_msg {
-    sci_msq_queue_t *msq;
-    sci_msg_t       msg;    
-    u32             *size;
-    u32             *free;
-    u32             flags;
-};
-
-struct sci_if_msg {
-    sci_msq_queue_t *msq;
-    void            *msg;    
-    u32             size;
-    u32             *free;
-    // u32             flags;
-};
-
-struct sci_if_msq {
-    sci_msq_queue_t msq;
-    u32             local_adapter_no; 
-    u32             remote_node_id;
-    u32             max_msg_count;    
-    u32             max_msg_size;
-    u32             l_qpn; 
-    u32             r_qpn;
-};
-
-
 struct dis_wqe {
-    struct ib_sge   sg_list[DIS_WQE_SGE_MAX]; //TODO: Replace this with sci_if_v_msg
+    struct iovec    iov[DIS_WQE_SGE_MAX];
+    sci_msq_queue_t *sci_msq;
+    sci_msg_t       sci_msg;
+    u32             lkey[DIS_WQE_SGE_MAX];
     u32             id;
-    u16             sge_count;
-    u16             byte_len;
+    u32             byte_len;
     u8              opcode;
     u8              valid;
 };
@@ -101,7 +76,6 @@ struct dis_wqe {
 struct dis_wq {
     // struct dis_qp       *qp;
     struct dis_cq       *cq;
-    struct sci_if_msq   msq;
     struct task_struct  *thread;
     struct dis_wqe      *wqe_queue;
     wait_queue_head_t   wait_queue;
@@ -113,6 +87,11 @@ struct dis_wq {
     u32                 wqe_max;
     u32                 sge_max;
     u32                 inline_max;
+
+    sci_msq_queue_t     sci_msq;
+    u32                 mtu;
+    u32                 l_qpn; 
+    u32                 r_qpn;
 };
 
 struct dis_qp {
@@ -135,6 +114,7 @@ struct dis_srq {
     spinlock_t          srq_lock;
     enum ib_srq_type    srq_type;
     u32                 srq_limit;
+    sci_msq_queue_t     sci_msq;
 
     // struct dis_wqe      *rqe_queue;
     // u32                 rqe_get;

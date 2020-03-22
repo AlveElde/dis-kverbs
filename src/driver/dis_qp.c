@@ -23,7 +23,7 @@ int dis_wq_post_cqe(struct dis_wq *wq,
         return -42;
     }
 
-    // cqe->ibqp       = &wq->qp->ibqp;
+    // cqe->ibqp       = &wq->qp->ibqp; 
     cqe->id         = wqe->id;
     cqe->opcode     = wqe->opcode;
     cqe->byte_len   = wqe->byte_len;
@@ -37,22 +37,22 @@ int dis_wq_post_cqe(struct dis_wq *wq,
     return 0;
 }
 
-enum ib_wc_status dis_wq_consume_one_rqe(struct sci_if_v_msg *msg)
+enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wqe *wqe)
 {
-    int ret, size_left;
+    int ret, bytes_left;
     pr_devel(DIS_STATUS_START);
 
-    size_left = *(msg->size);
+    bytes_left = wqe->byte_len;
     while (!kthread_should_stop()) {
-        ret = sci_if_receive_v_msg(msg);
+        ret = sci_if_receive_v_msg(wqe);
         if (!ret) {
-            // Note: msg->size is only changed on a successful, but partial, receive
-            size_left -= *(msg->size);
-            if(size_left == 0) {
+            // Note: wqe->byte_len is only changed on a successful, but partial, receive
+            bytes_left -= wqe->byte_len;
+            if(bytes_left == 0) {
                 pr_devel(DIS_STATUS_COMPLETE);
                 return IB_WC_SUCCESS;
             }
-            *(msg->size) = size_left;
+            wqe->byte_len = bytes_left;
         }
     }
 
@@ -60,13 +60,13 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct sci_if_v_msg *msg)
     return IB_WC_RESP_TIMEOUT_ERR;
 }
 
-enum ib_wc_status dis_wq_consume_one_sqe(struct sci_if_v_msg *msg)
+enum ib_wc_status dis_wq_consume_one_sqe(struct dis_wqe *wqe)
 {
     int ret;
     pr_devel(DIS_STATUS_START);
 
     while (!kthread_should_stop()) {
-        ret = sci_if_send_v_msg(msg);
+        ret = sci_if_send_v_msg(wqe);
         if (!ret) {
             pr_devel(DIS_STATUS_COMPLETE);
             return IB_WC_SUCCESS;
@@ -79,10 +79,8 @@ enum ib_wc_status dis_wq_consume_one_sqe(struct sci_if_v_msg *msg)
 
 int dis_wq_consume_all(struct dis_wq *wq)
 {
-    int i, size, free;
+    int i;
     struct dis_wqe *wqe;
-    struct sci_if_v_msg msg;
-    struct iovec iov[DIS_WQE_SGE_MAX];
     enum ib_wc_status wc_status;
     pr_devel(DIS_STATUS_START);
 
@@ -94,30 +92,13 @@ int dis_wq_consume_all(struct dis_wq *wq)
             return 0;
         }
 
-        msg.msq             = &wq->msq.msq;
-        msg.size            = &size;
-        msg.free            = &free;
-
-        msg.msg.cmsg_valid  = 0;
-        msg.msg.page        = NULL;
-        msg.msg.iov         = iov;
-        msg.msg.iovlen      = wqe->sge_count;
-        
-        //TODO: Move to post_send/post_receive
-        size = 0;
-        for (i = 0; i < wqe->sge_count; i++) {
-            iov[i].iov_base = (void *)(wqe->sg_list[i].addr);
-            iov[i].iov_len  = (size_t)(wqe->sg_list[i].length);
-            size            += wqe->sg_list[i].length;
-        }
-
         switch (wq->wq_type) {
         case DIS_RQ:
-            wc_status = dis_wq_consume_one_rqe(&msg);
+            wc_status = dis_wq_consume_one_rqe(wqe);
             break;
 
         case DIS_SQ:
-            wc_status = dis_wq_consume_one_sqe(&msg);
+            wc_status = dis_wq_consume_one_sqe(wqe);
             break;
 
         default:
@@ -143,7 +124,7 @@ int dis_wq_init(struct dis_wq *wq)
     while (!kthread_should_stop()) {
         switch (wq->wq_type) {
         case DIS_RQ:
-            ret = sci_if_create_msq(&wq->msq);
+            ret = sci_if_create_msq(wq);
             if(!ret) {
                 pr_devel(DIS_STATUS_COMPLETE);
                 return 0;
@@ -151,7 +132,7 @@ int dis_wq_init(struct dis_wq *wq)
             break;
 
         case DIS_SQ:
-            ret = sci_if_connect_msq(&wq->msq);
+            ret = sci_if_connect_msq(wq);
             if(!ret) {
                 pr_devel(DIS_STATUS_COMPLETE);
                 return 0;
@@ -177,11 +158,11 @@ void dis_wq_exit(struct dis_wq *wq)
 
     switch (wq->wq_type) {
     case DIS_RQ:
-        sci_if_remove_msq(&wq->msq);
+        sci_if_remove_msq(wq);
         break;
 
     case DIS_SQ:
-        sci_if_disconnect_msq(&wq->msq);
+        sci_if_disconnect_msq(wq);
         break;
 
     default:
