@@ -18,17 +18,17 @@ int dis_wq_post_cqe(struct dis_wq *wq,
 
     cqe = cq->cqe_queue + (cq->cqe_put % cq->cqe_max);
 
-    if(cqe->flags != DIS_WQE_FREE) {
+    if(cqe->valid) {
         spin_unlock_irqrestore(&cq->cqe_lock, flags);
         return -42;
     }
 
-    cqe->ibqp       = &wq->qp->ibqp;
+    // cqe->ibqp       = &wq->qp->ibqp;
     cqe->id         = wqe->id;
     cqe->opcode     = wqe->opcode;
     cqe->byte_len   = wqe->byte_len;
     cqe->status     = wq_status;
-    cqe->flags      = DIS_WQE_VALID;
+    cqe->valid      = 1;
 
     cq->cqe_put++;
 
@@ -45,9 +45,8 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct sci_if_v_msg *msg)
     size_left = *(msg->size);
     while (!kthread_should_stop()) {
         ret = sci_if_receive_v_msg(msg);
-
         if (!ret) {
-            // msg->size is only set on a successful receive
+            // Note: msg->size is only changed on a successful, but partial, receive
             size_left -= *(msg->size);
             if(size_left == 0) {
                 pr_devel(DIS_STATUS_COMPLETE);
@@ -83,33 +82,35 @@ int dis_wq_consume_all(struct dis_wq *wq)
     int i, size, free;
     struct dis_wqe *wqe;
     struct sci_if_v_msg msg;
-    struct iovec iov[DIS_WQE_MAX_SGE];
+    struct iovec iov[DIS_WQE_SGE_MAX];
     enum ib_wc_status wc_status;
     pr_devel(DIS_STATUS_START);
 
     while (!kthread_should_stop()) {
         wqe = wq->wqe_queue + (wq->wqe_get % wq->wqe_max);
 
-        if(wqe->flags != DIS_WQE_VALID) {
+        if(!wqe->valid) {
             pr_devel(DIS_STATUS_COMPLETE);
             return 0;
         }
 
+        msg.msq             = &wq->msq.msq;
+        msg.size            = &size;
+        msg.free            = &free;
+
+        msg.msg.cmsg_valid  = 0;
+        msg.msg.page        = NULL;
+        msg.msg.iov         = iov;
+        msg.msg.iovlen      = wqe->sge_count;
+        
+        //TODO: Move to post_send/post_receive
         size = 0;
-        for (i = 0; i < wqe->num_sge; i++) {
+        for (i = 0; i < wqe->sge_count; i++) {
             iov[i].iov_base = (void *)(wqe->sg_list[i].addr);
             iov[i].iov_len  = (size_t)(wqe->sg_list[i].length);
             size            += wqe->sg_list[i].length;
         }
 
-        msg.msq             = &wq->msq.msq;
-        msg.free            = &free;
-        msg.msg.iov         = iov;
-        msg.msg.iovlen      = wqe->num_sge;
-        msg.size            = &size;
-        msg.msg.cmsg_valid  = 0;
-        msg.msg.page        = NULL;
-        
         switch (wq->wq_type) {
         case DIS_RQ:
             wc_status = dis_wq_consume_one_rqe(&msg);
@@ -125,7 +126,7 @@ int dis_wq_consume_all(struct dis_wq *wq)
         }
 
         dis_wq_post_cqe(wq, wqe, wc_status);
-        wqe->flags = DIS_WQE_FREE;
+        wqe->valid = 0;
         wq->wqe_get++;
     }
 
@@ -198,7 +199,6 @@ int dis_wq_thread(void *wq_buf)
     pr_devel(DIS_STATUS_START);
     
     wq->wq_state = DIS_WQ_RUNNING;
-
     ret = dis_wq_init(wq);
     if (ret) {
         wq->wq_state = DIS_WQ_EXITED;

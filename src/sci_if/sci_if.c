@@ -132,34 +132,6 @@ void sci_if_disconnect_msq(struct sci_if_msq *msq)
 }
 EXPORT_SYMBOL(sci_if_disconnect_msq);
 
-// int sci_if_send_msg(struct sci_if_msg *msg)
-// {
-//     sci_error_t err;
-//     // pr_devel(DIS_STATUS_START);
-
-//     err = SCILSendMsg(*(msg->msq),
-//                         msg->msg,
-//                         msg->size,
-//                         msg->free,
-//                         msg->flags);
-//     switch (err)
-//     {
-//     case SCI_ERR_OK:
-//         pr_devel(DIS_STATUS_COMPLETE);
-//         return 0;
-//     case SCI_ERR_EWOULD_BLOCK:
-//         // pr_devel("SCI_ERR_EWOULD_BLOCK: " DIS_STATUS_FAIL);
-//         return -42;
-//     case SCI_ERR_NOT_CONNECTED:
-//         pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);
-//         return -42;
-//     default:
-//         pr_devel("Unknown error code: " DIS_STATUS_FAIL);
-//         return -42;
-//     }
-// }
-// EXPORT_SYMBOL(sci_if_send_msg);
-
 int sci_if_send_v_msg(struct sci_if_v_msg *msg)
 {
     sci_error_t err;
@@ -224,37 +196,6 @@ int sci_if_receive_v_msg(struct sci_if_v_msg *msg)
     }
 }
 EXPORT_SYMBOL(sci_if_receive_v_msg);
-
-// int sci_if_receive_msg(struct sci_if_msg *msg)
-// {
-//     sci_error_t err;
-//     // pr_devel(DIS_STATUS_START);
-
-//     err = SCILReceiveMsg(*(msg->msq),
-//                         msg->msg,
-//                         msg->size,
-//                         msg->free,
-//                         msg->flags);
-//     switch (err)
-//     {
-//     case SCI_ERR_OK:
-//         pr_devel(DIS_STATUS_COMPLETE);
-//         return 0;
-//     case SCI_ERR_EWOULD_BLOCK:
-//         // pr_devel("SCI_ERR_EWOULD_BLOCK");
-//         return -42;
-//     case SCI_ERR_NOT_CONNECTED:
-//         pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);
-//         return -42;
-//     case SCI_ERR_ILLEGAL_PARAMETER:
-//         pr_devel("SCI_ERR_ILLEGAL_PARAMETER: " DIS_STATUS_FAIL);
-//         return -42;
-//     default:
-//         pr_devel("Unknown error code: " DIS_STATUS_FAIL);
-//         return -42;
-//     }
-// }
-// EXPORT_SYMBOL(sci_if_receive_msg);
 
 static int __init sci_if_init(void)
 {
