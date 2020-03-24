@@ -5,7 +5,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 
-#include "sci_if.h"
+#include "dis_sci_if.h"
 
 MODULE_DESCRIPTION("SCI Lib Interface");
 MODULE_AUTHOR("Alve Elde");
@@ -28,7 +28,7 @@ MODULE_PARM_DESC(is_initiator, "");
 #define SCIL_INIT_FLAGS 0
 #define SCIL_EXIT_FLAGS 0
 
-int sci_if_create_msq(struct dis_wq *wq)
+int dis_sci_if_create_msq(struct dis_wq *wq)
 {
     int l_msq_id, r_msq_id;
     sci_error_t err;
@@ -70,17 +70,17 @@ int sci_if_create_msq(struct dis_wq *wq)
         return -42;
     }
 }
-EXPORT_SYMBOL(sci_if_create_msq);
+EXPORT_SYMBOL(dis_sci_if_create_msq);
 
-void sci_if_remove_msq(struct dis_wq *wq)
+void dis_sci_if_remove_msq(struct dis_wq *wq)
 {
     pr_devel(DIS_STATUS_START);
     SCILRemoveMsgQueue(&wq->sci_msq, 0);
     pr_devel(DIS_STATUS_COMPLETE);
 }
-EXPORT_SYMBOL(sci_if_remove_msq);
+EXPORT_SYMBOL(dis_sci_if_remove_msq);
 
-int sci_if_connect_msq(struct dis_wq *wq)
+int dis_sci_if_connect_msq(struct dis_wq *wq)
 {
     int l_msq_id, r_msq_id;
     sci_error_t err;
@@ -122,17 +122,17 @@ int sci_if_connect_msq(struct dis_wq *wq)
         return -42;
     }
 }
-EXPORT_SYMBOL(sci_if_connect_msq);
+EXPORT_SYMBOL(dis_sci_if_connect_msq);
 
-void sci_if_disconnect_msq(struct dis_wq *wq)
+void dis_sci_if_disconnect_msq(struct dis_wq *wq)
 {
     pr_devel(DIS_STATUS_START);
     SCILDisconnectMsgQueue(&wq->sci_msq, 0);
     pr_devel(DIS_STATUS_COMPLETE);
 }
-EXPORT_SYMBOL(sci_if_disconnect_msq);
+EXPORT_SYMBOL(dis_sci_if_disconnect_msq);
 
-int sci_if_send_v_msg(struct dis_wqe *wqe)
+int dis_sci_if_send_v_msg(struct dis_wqe *wqe)
 {
     int free;
     sci_error_t err;
@@ -162,9 +162,9 @@ int sci_if_send_v_msg(struct dis_wqe *wqe)
         return -42;
     }
 }
-EXPORT_SYMBOL(sci_if_send_v_msg);
+EXPORT_SYMBOL(dis_sci_if_send_v_msg);
 
-int sci_if_receive_v_msg(struct dis_wqe *wqe)
+int dis_sci_if_receive_v_msg(struct dis_wqe *wqe)
 {
     int free;
     sci_error_t err;
@@ -197,9 +197,9 @@ int sci_if_receive_v_msg(struct dis_wqe *wqe)
         return -42;
     }
 }
-EXPORT_SYMBOL(sci_if_receive_v_msg);
+EXPORT_SYMBOL(dis_sci_if_receive_v_msg);
 
-static int __init sci_if_init(void)
+static int __init dis_sci_if_init(void)
 {
     sci_error_t ret;
     pr_devel(DIS_STATUS_START);
@@ -214,7 +214,7 @@ static int __init sci_if_init(void)
     return 0;
 }
 
-static void __exit sci_if_exit(void)
+static void __exit dis_sci_if_exit(void)
 {
     sci_error_t ret;
     pr_devel(DIS_STATUS_START);
@@ -228,5 +228,5 @@ static void __exit sci_if_exit(void)
     pr_devel(DIS_STATUS_COMPLETE);
 }
 
-module_init(sci_if_init);
-module_exit(sci_if_exit);
+module_init(dis_sci_if_init);
+module_exit(dis_sci_if_exit);

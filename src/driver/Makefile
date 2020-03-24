@@ -1,6 +1,9 @@
 obj-m += dis_driver_mod.o
 dis_driver_mod-objs := dis_driver.o dis_verbs.o dis_qp.o
 
+obj-m += dis_sci_if_mod.o
+dis_sci_if_mod-objs := dis_sci_if.o
+
 KVERBS_SRC 		:= $(obj)/..
 DIS_SRC			:= /opt/DIS
 SCI_SRC			:= /home/alve/scilib
@@ -19,7 +22,6 @@ EXTRA_CFLAGS += -D_DIS_KERNEL_ 			\
 				-DHAVE_WAIT_QUEUE_ENTRY	\
 
 EXTRA_CFLAGS += -I$(KVERBS_SRC)/common						\
-				-I$(KVERBS_SRC)/sci_if						\
 				-I$(DIS_SRC)/include						\
 				-I$(DIS_SRC)/include/dis					\
 				-I$(DIS_SRC)/include/os						\

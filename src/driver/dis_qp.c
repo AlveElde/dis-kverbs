@@ -2,7 +2,7 @@
 
 #include "dis_verbs.h"
 #include "dis_qp.h"
-#include "sci_if.h"
+#include "dis_sci_if.h"
 
 int dis_wq_post_cqe(struct dis_wq *wq, 
                     struct dis_wqe *wqe,
@@ -44,7 +44,7 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wqe *wqe)
 
     bytes_left = wqe->byte_len;
     while (!kthread_should_stop()) {
-        ret = sci_if_receive_v_msg(wqe);
+        ret = dis_sci_if_receive_v_msg(wqe);
         if (!ret) {
             // Note: wqe->byte_len is only changed on a successful, but partial, receive
             bytes_left -= wqe->byte_len;
@@ -66,7 +66,7 @@ enum ib_wc_status dis_wq_consume_one_sqe(struct dis_wqe *wqe)
     pr_devel(DIS_STATUS_START);
 
     while (!kthread_should_stop()) {
-        ret = sci_if_send_v_msg(wqe);
+        ret = dis_sci_if_send_v_msg(wqe);
         if (!ret) {
             pr_devel(DIS_STATUS_COMPLETE);
             return IB_WC_SUCCESS;
@@ -123,7 +123,7 @@ int dis_wq_init(struct dis_wq *wq)
     while (!kthread_should_stop()) {
         switch (wq->wq_type) {
         case DIS_RQ:
-            ret = sci_if_create_msq(wq);
+            ret = dis_sci_if_create_msq(wq);
             if(!ret) {
                 pr_devel(DIS_STATUS_COMPLETE);
                 return 0;
@@ -131,7 +131,7 @@ int dis_wq_init(struct dis_wq *wq)
             break;
 
         case DIS_SQ:
-            ret = sci_if_connect_msq(wq);
+            ret = dis_sci_if_connect_msq(wq);
             if(!ret) {
                 pr_devel(DIS_STATUS_COMPLETE);
                 return 0;
@@ -157,11 +157,11 @@ void dis_wq_exit(struct dis_wq *wq)
 
     switch (wq->wq_type) {
     case DIS_RQ:
-        sci_if_remove_msq(wq);
+        dis_sci_if_remove_msq(wq);
         break;
 
     case DIS_SQ:
-        sci_if_disconnect_msq(wq);
+        dis_sci_if_disconnect_msq(wq);
         break;
 
     default:
