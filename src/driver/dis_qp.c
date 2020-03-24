@@ -79,7 +79,6 @@ enum ib_wc_status dis_wq_consume_one_sqe(struct dis_wqe *wqe)
 
 int dis_wq_consume_all(struct dis_wq *wq)
 {
-    int i;
     struct dis_wqe *wqe;
     enum ib_wc_status wc_status;
     pr_devel(DIS_STATUS_START);

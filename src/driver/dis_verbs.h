@@ -76,9 +76,10 @@ struct dis_wqe {
 struct dis_wq {
     // struct dis_qp       *qp;
     struct dis_cq       *cq;
-    struct task_struct  *thread;
     struct dis_wqe      *wqe_queue;
+    struct task_struct  *thread;
     wait_queue_head_t   wait_queue;
+    sci_msq_queue_t     sci_msq;
     enum dis_wq_flag    wq_flag;
     enum dis_wq_status  wq_state;
     enum dis_wq_type    wq_type;
@@ -87,8 +88,6 @@ struct dis_wq {
     u32                 wqe_max;
     u32                 sge_max;
     u32                 inline_max;
-
-    sci_msq_queue_t     sci_msq;
     u32                 mtu;
     u32                 l_qpn; 
     u32                 r_qpn;
@@ -115,12 +114,6 @@ struct dis_srq {
     enum ib_srq_type    srq_type;
     u32                 srq_limit;
     sci_msq_queue_t     sci_msq;
-
-    // struct dis_wqe      *rqe_queue;
-    // u32                 rqe_get;
-    // u32                 rqe_put;
-    // u32                 rqe_max;
-    // u32                 sge_max;
 };
 
 struct dis_mr {
@@ -174,6 +167,11 @@ static inline struct dis_ucontext *to_dis_ucontext(struct ib_ucontext *ibucontex
 {
     return ibucontext ? container_of(ibucontext, struct dis_ucontext, ibucontext) : NULL;
 }
+
+// Ucontext verbs.
+int dis_alloc_ucontext(struct ib_ucontext *ibucontext,
+                                struct ib_udata *udata);
+void dis_dealloc_ucontext(struct ib_ucontext *ibucontext);
 
 // Device verbs.
 int dis_query_device(struct ib_device *ibdev, 

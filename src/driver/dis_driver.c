@@ -24,6 +24,8 @@ static const struct ib_device_ops disdevops = {
     .driver_id = RDMA_DRIVER_UNKNOWN,
     .uverbs_abi_ver = 1,
 
+    .alloc_ucontext     = dis_alloc_ucontext,
+    .dealloc_ucontext   = dis_dealloc_ucontext,
     .alloc_pd           = dis_alloc_pd,
     .create_cq          = dis_create_cq,
     .create_qp          = dis_create_qp,
@@ -68,19 +70,45 @@ static int dis_driver_probe(struct device *dev)
     }
     pr_devel("ib_alloc_device " DIS_STATUS_COMPLETE);
 
-    disdev->ibdev.uverbs_cmd_mask   = (1ull);
-    disdev->ibdev.node_type         = RDMA_NODE_UNSPECIFIED;
+    disdev->ibdev.uverbs_cmd_mask =
+		(1ull << IB_USER_VERBS_CMD_GET_CONTEXT)     |
+        (1ull << IB_USER_VERBS_CMD_QUERY_DEVICE)    |
+        (1ull << IB_USER_VERBS_CMD_QUERY_PORT)      |
+		(1ull << IB_USER_VERBS_CMD_ALLOC_PD)        |
+		(1ull << IB_USER_VERBS_CMD_DEALLOC_PD)      |
+		// (1ull << IB_USER_VERBS_CMD_REG_MR) |
+		// (1ull << IB_USER_VERBS_CMD_DEREG_MR) |
+		// (1ull << IB_USER_VERBS_CMD_CREATE_COMP_CHANNEL) |
+		(1ull << IB_USER_VERBS_CMD_CREATE_CQ)       |
+		(1ull << IB_USER_VERBS_CMD_POLL_CQ)         |
+		(1ull << IB_USER_VERBS_CMD_REQ_NOTIFY_CQ)   |
+		(1ull << IB_USER_VERBS_CMD_DESTROY_CQ)      |
+		(1ull << IB_USER_VERBS_CMD_CREATE_QP)       |
+		(1ull << IB_USER_VERBS_CMD_QUERY_QP)        |
+		(1ull << IB_USER_VERBS_CMD_MODIFY_QP)       |
+		(1ull << IB_USER_VERBS_CMD_DESTROY_QP)      |
+		(1ull << IB_USER_VERBS_CMD_POST_SEND)       |
+		(1ull << IB_USER_VERBS_CMD_POST_RECV)       |
+		(1ull << IB_USER_VERBS_CMD_CREATE_SRQ)      |
+		(1ull << IB_USER_VERBS_CMD_MODIFY_SRQ)      |
+		(1ull << IB_USER_VERBS_CMD_QUERY_SRQ)       |
+		(1ull << IB_USER_VERBS_CMD_POST_SRQ_RECV)   |
+		(1ull << IB_USER_VERBS_CMD_DESTROY_SRQ);
+
+
+    disdev->ibdev.node_type         = RDMA_NODE_RNIC;
     disdev->ibdev.phys_port_cnt     = 1;
     disdev->ibdev.num_comp_vectors  = 1;
     disdev->ibdev.local_dma_lkey    = 1234;
     disdev->ibdev.node_guid         = 1234;
     disdev->ibdev.dev.parent        = dev;
-    strlcpy(disdev->ibdev.name, "dis", IB_DEVICE_NAME_MAX);
+    strlcpy(disdev->ibdev.name, DIS_ROPCIE_NAME, IB_DEVICE_NAME_MAX);
+    // strlcpy(disdev->ibdev.node_desc, DIS_ROPCIE_NAME, strlen(DIS_ROPCIE_NAME));
     ib_set_device_ops(&(disdev->ibdev), &disdevops);
 
-    ret = ib_register_device(&(disdev->ibdev), "dis");
+    ret = ib_register_device(&(disdev->ibdev), DIS_ROPCIE_NAME);
     if(ret) {
-        dev_err(dev, "ib_register_device " DIS_STATUS_FAIL);
+        dev_err(dev, "ib_register_device: " DIS_STATUS_FAIL);
         ib_dealloc_device(&(disdev->ibdev));
         return -1;
     }
@@ -93,7 +121,6 @@ static int dis_driver_remove(struct device *dev)
 {
     pr_devel(DIS_STATUS_START);
 
-    //TODO: Move to dev_release?
     ib_unregister_device(&(disdev->ibdev));
     ib_dealloc_device(&(disdev->ibdev));
 
@@ -102,10 +129,10 @@ static int dis_driver_remove(struct device *dev)
 }
 
 struct device_driver dis_dev_drv = {
-    .name = DIS_ROPCIE_NAME,
-    .bus = &dis_bus_type,
-    .probe = dis_driver_probe,
-    .remove = dis_driver_remove,
+    .name       = DIS_ROPCIE_NAME,
+    .bus        = &dis_bus_type,
+    .probe      = dis_driver_probe,
+    .remove     = dis_driver_remove,
 };
 
 static int __init dis_driver_init(void)

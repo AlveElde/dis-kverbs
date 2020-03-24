@@ -5,6 +5,29 @@
 
 static int global_qpn = 100;
 
+int dis_alloc_ucontext(struct ib_ucontext *ibucontext, 
+                                struct ib_udata *udata)
+{
+	// struct dis_ucontext *ucontext = to_dis_ucontext(ibucontext);
+	// struct dis_dev *dev = to_dis_dev(ibucontext->device);
+    pr_devel(DIS_STATUS_START);
+
+
+
+    pr_devel(DIS_STATUS_COMPLETE);
+	return 0;
+}
+
+void dis_dealloc_ucontext(struct ib_ucontext *ibucontext)
+{
+	// struct dis_ucontext *ucontext = to_dis_ucontext(ibucontext);
+    pr_devel(DIS_STATUS_START);
+
+    
+
+    pr_devel(DIS_STATUS_COMPLETE);
+}
+
 int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *dev_attr,
                         struct ib_udata *udata)
 {
@@ -14,12 +37,12 @@ int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *dev_attr,
     dev_attr->sys_image_guid       = 1234;
     dev_attr->max_mr_size          = 0;
     dev_attr->page_size_cap        = 0; // 4KB-128MB
-    dev_attr->vendor_id            = 1234;
-    dev_attr->vendor_part_id       = 1234;
+    dev_attr->vendor_id            = 0x1234;
+    dev_attr->vendor_part_id       = 0x1234;
     dev_attr->hw_ver               = 1234;
     dev_attr->max_qp               = 1234;
     dev_attr->max_qp_wr            = 1234;
-    dev_attr->device_cap_flags     = 0;
+    dev_attr->device_cap_flags     = IB_DEVICE_MEM_MGT_EXTENSIONS | IB_DEVICE_ALLOW_USER_UNREG;
     dev_attr->max_send_sge         = DIS_WQE_SGE_MAX;
     dev_attr->max_recv_sge         = DIS_WQE_SGE_MAX;
     dev_attr->max_sge_rd           = 1;
@@ -56,6 +79,8 @@ int dis_query_port(struct ib_device *ibdev, u8 port,
     port_attr->sm_sl            = 0;
     port_attr->subnet_timeout   = 0;
     port_attr->init_type_reply  = 0;
+    port_attr->phys_state       = IB_PORT_PHYS_STATE_LINK_UP;
+    port_attr->state            = IB_PORT_ACTIVE;
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -576,7 +601,7 @@ int dis_post_srq_recv(struct ib_srq *ibsrq,
         for (i = 0; i < rqe->sci_msg.iovlen; i++) {
             rqe->iov[i].iov_base    = (void *)(recv_wr_iter->sg_list[i].addr);
             rqe->iov[i].iov_len     = (size_t)(recv_wr_iter->sg_list[i].length);
-            rqe->byte_len       += recv_wr_iter->sg_list[i].length;
+            rqe->byte_len           += recv_wr_iter->sg_list[i].length;
             rqe->lkey[i]            = recv_wr_iter->sg_list[i].lkey;
         }
 
