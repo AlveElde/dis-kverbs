@@ -12,9 +12,9 @@ MODULE_DESCRIPTION("DIS Bus");
 MODULE_AUTHOR("Alve Elde");
 MODULE_LICENSE("GPL");
 
-static int bus_match(struct device *dev, struct device_driver *driver)
+static int bus_match(struct device *dev, struct device_driver *drv)
 {
-    return !strncmp(dev_name(dev), driver->name, strlen(driver->name)); 
+    return !strncmp(dev_name(dev), drv->name, strlen(drv->name)); 
 }
 
 struct bus_type dis_bus_type = {

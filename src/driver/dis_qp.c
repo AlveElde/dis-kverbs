@@ -27,6 +27,7 @@ int dis_wq_post_cqe(struct dis_wq *wq,
     cqe->id         = wqe->id;
     cqe->opcode     = wqe->opcode;
     cqe->byte_len   = wqe->byte_len;
+    cqe->ibqp       = wqe->ibqp;
     cqe->status     = wq_status;
     cqe->valid      = 1;
 

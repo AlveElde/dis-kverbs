@@ -20,11 +20,14 @@ static void dis_dev_release(struct device *dev)
     pr_devel(DIS_STATUS_COMPLETE);
 }
 
+static u64 dma_mask = 0xffffffff;
+
 struct device dis_dev = {
-    .init_name = DIS_ROPCIE_NAME,
-    .bus = &dis_bus_type,
-    .parent = &dis_bus_dev,
-    .release = dis_dev_release,
+    .init_name  = DIS_ROPCIE_NAME,
+    .bus        = &dis_bus_type,
+    .parent     = &dis_bus_dev,
+    .release    = dis_dev_release,
+    .dma_mask   = &dma_mask,
 };
 
 static int __init dis_device_init(void)

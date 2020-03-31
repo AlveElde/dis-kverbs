@@ -1,6 +1,7 @@
 #ifndef __DIS_VERBS_H__
 #define __DIS_VERBS_H__
 
+#include <linux/dma-mapping.h>
 #include <linux/kthread.h>
 #include <linux/wait.h>
 
@@ -10,6 +11,11 @@
 #include "scilib.h"
 
 #define DIS_WQE_SGE_MAX 4
+#define DIS_QP_INI      100
+#define DIS_QP_MAX      200
+#define DIS_MR_INI      0
+#define DIS_MR_MAX      100
+#define DIS_PB_PER_MAP  (PAGE_SIZE / sizeof(struct dis_pb))
 
 enum dis_wq_flag {
     DIS_WQ_EMPTY,
@@ -20,22 +26,40 @@ enum dis_wq_status {
     DIS_WQ_UNINITIALIZED,
     DIS_WQ_INITIALIZED,
     DIS_WQ_RUNNING,
-    DIS_WQ_EXITED
+    DIS_WQ_EXITED,
 };
 
 enum dis_wq_type {
     DIS_SQ,
-    DIS_RQ
+    DIS_RQ,
 };
 
-// Provider-specific structures.
+struct dis_pb {
+    u64 phys_addr;
+    u64 length;
+};
+
+struct dis_map {
+    struct dis_pb pb_list[DIS_PB_PER_MAP];
+};
+
 struct dis_dev {
-    struct ib_device ibdev;
+    struct ib_device                ibdev;
+    struct device                   *dev;
+    struct device_dma_parameters    dma_parms;
 };
 
-struct dis_pd {
-    struct ib_pd    ibpd;
-    struct dis_dev  *dev;
+struct dis_mr {
+    struct ib_mr    ibmr;
+    struct ib_umem  *ibumem;
+    // struct ib_pd    *ibpd;
+    dma_addr_t      dma_addr;
+    struct dis_map  **map_list;
+    // struct dis_pbl  pbl_table;
+    u64             virt_addr;
+    u32             map_count;
+    u32             page_count;
+    u32             offset;
 };
 
 struct dis_ah {
@@ -44,7 +68,7 @@ struct dis_ah {
 };
 
 struct dis_cqe {
-    // struct ib_qp    *ibqp;
+    struct ib_qp    *ibqp;
     u32             id;
     u16             status;
     u16             byte_len;
@@ -63,18 +87,19 @@ struct dis_cq {
 };
 
 struct dis_wqe {
+    struct ib_qp    *ibqp;
     struct iovec    iov[DIS_WQE_SGE_MAX];
     sci_msq_queue_t *sci_msq;
     sci_msg_t       sci_msg;
     u32             lkey[DIS_WQE_SGE_MAX];
     u32             id;
+    u32             l_qpn;
     u32             byte_len;
     u8              opcode;
     u8              valid;
 };
 
 struct dis_wq {
-    // struct dis_qp       *qp;
     struct dis_cq       *cq;
     struct dis_wqe      *wqe_queue;
     struct task_struct  *thread;
@@ -116,11 +141,15 @@ struct dis_srq {
     sci_msq_queue_t     sci_msq;
 };
 
-struct dis_mr {
-    struct ib_mr    ibmr;
-    struct ib_umem  *ibumem;
+struct dis_pd {
+    struct ib_pd    ibpd;
     struct dis_dev  *dev;
+    struct dis_qp   qp_list[DIS_QP_MAX];
+    struct dis_mr   mr_list[DIS_MR_MAX];
+    u32             qp_c;
+    u32             mr_c;
 };
+
 
 struct dis_ucontext {
     struct ib_ucontext  ibucontext;
@@ -190,6 +219,12 @@ int dis_alloc_pd(struct ib_pd *ibpd, struct ib_udata *udata);
 void dis_dealloc_pd(struct ib_pd *ibpd, struct ib_udata *udata);
 
 // Memory Region verbs.
+struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd, 
+                                u64 start,
+                                u64 length,
+                                u64 hca_va,
+                                int access,
+                                struct ib_udata *udata);
 struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access);
 int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata);
 

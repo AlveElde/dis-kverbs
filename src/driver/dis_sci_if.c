@@ -136,7 +136,7 @@ int dis_sci_if_send_v_msg(struct dis_wqe *wqe)
 {
     int free;
     sci_error_t err;
-    pr_devel(DIS_STATUS_START);
+    // pr_devel(DIS_STATUS_START);
 
     err = SCILSendVMsg(*(wqe->sci_msq),
                         &wqe->sci_msg,
@@ -149,7 +149,7 @@ int dis_sci_if_send_v_msg(struct dis_wqe *wqe)
         pr_devel(DIS_STATUS_COMPLETE);
         return 0;
     case SCI_ERR_EWOULD_BLOCK:
-        pr_devel("SCI_ERR_EWOULD_BLOCK: " DIS_STATUS_FAIL);
+        // pr_devel("SCI_ERR_EWOULD_BLOCK: " DIS_STATUS_FAIL);
         return -42;
     case SCI_ERR_NOT_CONNECTED:
         pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);
@@ -158,7 +158,7 @@ int dis_sci_if_send_v_msg(struct dis_wqe *wqe)
         pr_devel("SCI_ERR_OUT_OF_RANGE: " DIS_STATUS_FAIL);
         return -42;
     default:
-        pr_devel("Unknown error code: " DIS_STATUS_FAIL);
+        // pr_devel("Unknown error code: " DIS_STATUS_FAIL);
         return -42;
     }
 }
@@ -168,7 +168,7 @@ int dis_sci_if_receive_v_msg(struct dis_wqe *wqe)
 {
     int free;
     sci_error_t err;
-    pr_devel(DIS_STATUS_START);
+    // pr_devel(DIS_STATUS_START);
 
     err = SCILReceiveVMsg(*(wqe->sci_msq),
                         &wqe->sci_msg,
@@ -181,7 +181,7 @@ int dis_sci_if_receive_v_msg(struct dis_wqe *wqe)
         pr_devel(DIS_STATUS_COMPLETE);
         return 0;
     case SCI_ERR_EWOULD_BLOCK:
-        pr_devel("SCI_ERR_EWOULD_BLOCK");
+        // pr_devel("SCI_ERR_EWOULD_BLOCK");
         return -42;
     case SCI_ERR_NOT_CONNECTED:
         pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);
@@ -193,7 +193,7 @@ int dis_sci_if_receive_v_msg(struct dis_wqe *wqe)
         pr_devel("SCI_ERR_OUT_OF_RANGE: " DIS_STATUS_FAIL);
         return -42;
     default:
-        pr_devel("Unknown error code: " DIS_STATUS_FAIL);
+        // pr_devel("Unknown error code: " DIS_STATUS_FAIL);
         return -42;
     }
 }

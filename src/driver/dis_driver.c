@@ -34,6 +34,7 @@ static const struct ib_device_ops disdevops = {
     .destroy_cq         = dis_destroy_cq,
     .destroy_qp         = dis_destroy_qp,
     .get_dma_mr         = dis_get_dma_mr,
+    .reg_user_mr        = dis_reg_user_mr,
     .get_port_immutable = dis_get_port_immutable, 
     .modify_qp          = dis_modify_qp,
     .poll_cq            = dis_poll_cq,
@@ -70,15 +71,16 @@ static int dis_driver_probe(struct device *dev)
     }
     pr_devel("ib_alloc_device " DIS_STATUS_COMPLETE);
 
+    disdev->dev = dev;
+
     disdev->ibdev.uverbs_cmd_mask =
 		(1ull << IB_USER_VERBS_CMD_GET_CONTEXT)     |
         (1ull << IB_USER_VERBS_CMD_QUERY_DEVICE)    |
         (1ull << IB_USER_VERBS_CMD_QUERY_PORT)      |
 		(1ull << IB_USER_VERBS_CMD_ALLOC_PD)        |
 		(1ull << IB_USER_VERBS_CMD_DEALLOC_PD)      |
-		// (1ull << IB_USER_VERBS_CMD_REG_MR) |
-		// (1ull << IB_USER_VERBS_CMD_DEREG_MR) |
-		// (1ull << IB_USER_VERBS_CMD_CREATE_COMP_CHANNEL) |
+		(1ull << IB_USER_VERBS_CMD_REG_MR)          |
+		(1ull << IB_USER_VERBS_CMD_DEREG_MR)        |
 		(1ull << IB_USER_VERBS_CMD_CREATE_CQ)       |
 		(1ull << IB_USER_VERBS_CMD_POLL_CQ)         |
 		(1ull << IB_USER_VERBS_CMD_REQ_NOTIFY_CQ)   |
@@ -96,12 +98,15 @@ static int dis_driver_probe(struct device *dev)
 		(1ull << IB_USER_VERBS_CMD_DESTROY_SRQ);
 
 
-    disdev->ibdev.node_type         = RDMA_NODE_RNIC;
-    disdev->ibdev.phys_port_cnt     = 1;
-    disdev->ibdev.num_comp_vectors  = 1;
-    disdev->ibdev.local_dma_lkey    = 1234;
-    disdev->ibdev.node_guid         = 1234;
-    disdev->ibdev.dev.parent        = dev;
+    disdev->ibdev.node_type             = RDMA_NODE_UNSPECIFIED;
+    disdev->ibdev.phys_port_cnt         = 1;
+    disdev->ibdev.num_comp_vectors      = 1;
+    disdev->ibdev.local_dma_lkey        = 1234;
+    disdev->ibdev.node_guid             = 1234;
+    disdev->ibdev.dev.parent            = dev;
+    disdev->ibdev.dev.dma_ops           = &dma_virt_ops;
+	disdev->ibdev.dev.dma_parms         = &disdev->dma_parms;
+	disdev->dma_parms.max_segment_size  = SZ_2G;
     strlcpy(disdev->ibdev.name, DIS_ROPCIE_NAME, IB_DEVICE_NAME_MAX);
     // strlcpy(disdev->ibdev.node_desc, DIS_ROPCIE_NAME, strlen(DIS_ROPCIE_NAME));
     ib_set_device_ops(&(disdev->ibdev), &disdevops);
