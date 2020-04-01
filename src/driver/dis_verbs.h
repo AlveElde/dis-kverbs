@@ -10,12 +10,15 @@
 
 #include "scilib.h"
 
-#define DIS_WQE_SGE_MAX 4
-#define DIS_QP_INI      100
-#define DIS_QP_MAX      200
-#define DIS_MR_INI      0
-#define DIS_MR_MAX      100
-#define DIS_PB_PER_MAP  (PAGE_SIZE / sizeof(struct dis_pb))
+#define DIS_QP_INI          100
+#define DIS_QP_MAX          200
+#define DIS_MR_INI          0
+#define DIS_MR_MAX          100
+
+#define DIS_PAGE_SIZE       PAGE_SIZE
+#define DIS_SGE_PER_WQE     4
+#define DIS_PAGE_PER_SGE    10
+#define DIS_PAGE_PER_WQE    DIS_SGE_PER_WQE * DIS_PAGE_PER_SGE
 
 enum dis_wq_flag {
     DIS_WQ_EMPTY,
@@ -34,15 +37,6 @@ enum dis_wq_type {
     DIS_RQ,
 };
 
-struct dis_pb {
-    u64 phys_addr;
-    u64 length;
-};
-
-struct dis_map {
-    struct dis_pb pb_list[DIS_PB_PER_MAP];
-};
-
 struct dis_dev {
     struct ib_device                ibdev;
     struct device                   *dev;
@@ -52,14 +46,11 @@ struct dis_dev {
 struct dis_mr {
     struct ib_mr    ibmr;
     struct ib_umem  *ibumem;
-    // struct ib_pd    *ibpd;
     dma_addr_t      dma_addr;
-    struct dis_map  **map_list;
-    // struct dis_pbl  pbl_table;
-    u64             virt_addr;
-    u32             map_count;
+    u64             *page_pa;
+    u64             mr_va;
+    u64             mr_va_offset;
     u32             page_count;
-    u32             offset;
 };
 
 struct dis_ah {
@@ -86,12 +77,15 @@ struct dis_cq {
     u32             cqe_max;
 };
 
+struct dis_sge {
+    
+};
+
 struct dis_wqe {
     struct ib_qp    *ibqp;
-    struct iovec    iov[DIS_WQE_SGE_MAX];
+    struct iovec    iov[DIS_PAGE_PER_WQE];
     sci_msq_queue_t *sci_msq;
     sci_msg_t       sci_msg;
-    u32             lkey[DIS_WQE_SGE_MAX];
     u32             id;
     u32             l_qpn;
     u32             byte_len;

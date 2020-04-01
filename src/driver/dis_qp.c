@@ -26,7 +26,7 @@ int dis_wq_post_cqe(struct dis_wq *wq,
     // cqe->ibqp       = &wq->qp->ibqp; 
     cqe->id         = wqe->id;
     cqe->opcode     = wqe->opcode;
-    cqe->byte_len   = wqe->byte_len;
+    cqe->byte_len   = wqe->byte_len; //TODO: This will be 0 on success
     cqe->ibqp       = wqe->ibqp;
     cqe->status     = wq_status;
     cqe->valid      = 1;
@@ -232,6 +232,74 @@ int dis_qp_init(struct dis_wq *wq)
     
     wake_up_process(wq->thread);
 
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
+}
+
+int dis_qp_post_one_wqe(struct ib_qp *ibqp,
+                        struct dis_wq *wq, 
+                        struct ib_sge *sg_list, 
+                        int num_sge, 
+                        enum ib_wc_opcode opcode)
+{
+    int i, j;
+    u64 *page_pa, page_offset, sge_va, sge_length, sge_chunk;
+    struct dis_pd *pd = to_dis_pd(ibqp->pd);
+    struct dis_wqe *wqe;
+    struct dis_mr *mr;
+    struct ib_sge *ibsge;
+    pr_devel(DIS_STATUS_START);
+
+    wqe = wq->wqe_queue + (wq->wqe_put % wq->wqe_max);
+    if(wqe->valid) {
+        pr_devel(DIS_STATUS_FAIL);
+        return -42;
+    }
+
+    wqe->valid      = 1;
+    wqe->opcode     = opcode;
+    wqe->sci_msq    = &wq->sci_msq;
+    wqe->byte_len   = 0;
+    wqe->ibqp       = ibqp;
+
+    wqe->sci_msg.cmsg_valid = 0;
+    wqe->sci_msg.page       = NULL;
+    wqe->sci_msg.iov        = wqe->iov;
+    wqe->sci_msg.iovlen     = 0;
+
+    for (i = 0; i < min(num_sge, DIS_SGE_PER_WQE); i++) {
+        ibsge       = &sg_list[i];
+        mr          = &pd->mr_list[ibsge->lkey];
+        sge_va      = (uintptr_t)(ibsge->addr);
+        sge_length  = ibsge->length;
+        page_pa     = mr->page_pa;
+        page_offset = (sge_va - mr->mr_va) + mr->mr_va_offset;
+        j           = 0;
+
+        /* Find offset into the first page */
+        while (page_offset >= DIS_PAGE_SIZE) {
+            page_offset -= DIS_PAGE_SIZE;
+            page_pa++;
+        }
+
+        /* Create IO Vectors for each page chunk */
+        while (sge_length > 0 && j < DIS_PAGE_PER_SGE) {
+            sge_chunk = min(sge_length, DIS_PAGE_SIZE - page_offset);
+
+            wqe->iov[j].iov_base    = (void *)(*page_pa + page_offset);
+            wqe->iov[j].iov_len     = (size_t)sge_chunk;
+            wqe->byte_len           += sge_chunk;
+            wqe->sci_msg.iovlen++;
+
+            sge_length -= sge_chunk;
+            page_offset = 0;
+            page_pa++;
+            j++;
+        }
+    }
+
+    wq->wqe_put++;
+    
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
