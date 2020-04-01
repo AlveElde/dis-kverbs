@@ -23,7 +23,6 @@ int dis_wq_post_cqe(struct dis_wq *wq,
         return -42;
     }
 
-    // cqe->ibqp       = &wq->qp->ibqp; 
     cqe->id         = wqe->id;
     cqe->opcode     = wqe->opcode;
     cqe->byte_len   = wqe->byte_len; //TODO: This will be 0 on success
@@ -242,12 +241,13 @@ int dis_qp_post_one_wqe(struct ib_qp *ibqp,
                         int num_sge, 
                         enum ib_wc_opcode opcode)
 {
-    int i, j;
+    int i;
     u64 *page_pa, page_offset, sge_va, sge_length, sge_chunk;
     struct dis_pd *pd = to_dis_pd(ibqp->pd);
     struct dis_wqe *wqe;
     struct dis_mr *mr;
     struct ib_sge *ibsge;
+    struct iovec *iov;
     pr_devel(DIS_STATUS_START);
 
     wqe = wq->wqe_queue + (wq->wqe_put % wq->wqe_max);
@@ -274,7 +274,6 @@ int dis_qp_post_one_wqe(struct ib_qp *ibqp,
         sge_length  = ibsge->length;
         page_pa     = mr->page_pa;
         page_offset = (sge_va - mr->mr_va) + mr->mr_va_offset;
-        j           = 0;
 
         /* Find offset into the first page */
         while (page_offset >= DIS_PAGE_SIZE) {
@@ -283,18 +282,18 @@ int dis_qp_post_one_wqe(struct ib_qp *ibqp,
         }
 
         /* Create IO Vectors for each page chunk */
-        while (sge_length > 0 && j < DIS_PAGE_PER_SGE) {
-            sge_chunk = min(sge_length, DIS_PAGE_SIZE - page_offset);
+        while (sge_length > 0 && wqe->sci_msg.iovlen < DIS_PAGE_PER_SGE) {
+            sge_chunk   = min(sge_length, DIS_PAGE_SIZE - page_offset);
+            iov         = &wqe->iov[wqe->sci_msg.iovlen];
 
-            wqe->iov[j].iov_base    = (void *)(*page_pa + page_offset);
-            wqe->iov[j].iov_len     = (size_t)sge_chunk;
-            wqe->byte_len           += sge_chunk;
-            wqe->sci_msg.iovlen++;
+            iov->iov_base   = (void *)(*page_pa + page_offset);
+            iov->iov_len    = (size_t)sge_chunk;
+            wqe->byte_len   += sge_chunk;
 
             sge_length -= sge_chunk;
             page_offset = 0;
             page_pa++;
-            j++;
+            wqe->sci_msg.iovlen++;
         }
     }
 
