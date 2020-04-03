@@ -46,7 +46,6 @@ struct dis_dev {
 struct dis_mr {
     struct ib_mr    ibmr;
     struct ib_umem  *ibumem;
-    dma_addr_t      dma_addr;
     u64             *page_pa;
     u64             mr_va;
     u64             mr_va_offset;
@@ -60,7 +59,7 @@ struct dis_ah {
 
 struct dis_cqe {
     struct ib_qp    *ibqp;
-    u32             id;
+    u32             wr_id;
     u16             status;
     u16             byte_len;
     u8              valid;
@@ -77,16 +76,12 @@ struct dis_cq {
     u32             cqe_max;
 };
 
-struct dis_sge {
-    
-};
-
 struct dis_wqe {
     struct ib_qp    *ibqp;
     struct iovec    iov[DIS_PAGE_PER_WQE];
     sci_msq_queue_t *sci_msq;
     sci_msg_t       sci_msg;
-    u32             id;
+    u32             wr_id;
     u32             l_qpn;
     u32             byte_len;
     u8              opcode;
@@ -96,6 +91,7 @@ struct dis_wqe {
 struct dis_wq {
     struct dis_cq       *cq;
     struct dis_wqe      *wqe_queue;
+    struct ib_qp        *ibqp;
     struct task_struct  *thread;
     wait_queue_head_t   wait_queue;
     sci_msq_queue_t     sci_msq;
@@ -138,8 +134,8 @@ struct dis_srq {
 struct dis_pd {
     struct ib_pd    ibpd;
     struct dis_dev  *dev;
-    struct dis_qp   qp_list[DIS_QP_MAX];
-    struct dis_mr   mr_list[DIS_MR_MAX];
+    struct dis_qp   *qp_list[DIS_QP_MAX];
+    struct dis_mr   *mr_list[DIS_MR_MAX];
     u32             qp_c;
     u32             mr_c;
 };

@@ -23,9 +23,9 @@ int dis_wq_post_cqe(struct dis_wq *wq,
         return -42;
     }
 
-    cqe->id         = wqe->id;
+    cqe->wr_id      = wqe->wr_id;
     cqe->opcode     = wqe->opcode;
-    cqe->byte_len   = wqe->byte_len; //TODO: This will be 0 on success
+    cqe->byte_len   = wqe->byte_len;
     cqe->ibqp       = wqe->ibqp;
     cqe->status     = wq_status;
     cqe->valid      = 1;
@@ -39,10 +39,11 @@ int dis_wq_post_cqe(struct dis_wq *wq,
 
 enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wqe *wqe)
 {
-    int ret, bytes_left;
+    int ret, bytes_left, bytes_total;
     pr_devel(DIS_STATUS_START);
 
     bytes_left = wqe->byte_len;
+    bytes_total = wqe->byte_len;
     while (!kthread_should_stop()) {
         ret = dis_sci_if_receive_v_msg(wqe);
         if (!ret) {
@@ -50,6 +51,7 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wqe *wqe)
             bytes_left -= wqe->byte_len;
             if(bytes_left == 0) {
                 pr_devel(DIS_STATUS_COMPLETE);
+                wqe->byte_len = bytes_total;
                 return IB_WC_SUCCESS;
             }
             wqe->byte_len = bytes_left;
@@ -187,6 +189,13 @@ int dis_wq_thread(void *wq_buf)
     }
  
     while (!kthread_should_stop()) {
+        ret = dis_wq_consume_all(wq);
+        if (ret) {
+            break;
+        }
+
+        wq->wq_flag = DIS_WQ_EMPTY;
+
         signal = wait_event_killable(wq->wait_queue,
                                         wq->wq_flag != DIS_WQ_EMPTY ||
                                         kthread_should_stop());
@@ -199,13 +208,6 @@ int dis_wq_thread(void *wq_buf)
             pr_devel("Kernel thread should stop, exiting!");
             break;
         }
-
-        ret = dis_wq_consume_all(wq);
-        if (ret) {
-            break;
-        }
-
-        wq->wq_flag = DIS_WQ_EMPTY;
     }
 
     dis_wq_exit(wq);
@@ -235,41 +237,44 @@ int dis_qp_init(struct dis_wq *wq)
     return 0;
 }
 
-int dis_qp_post_one_wqe(struct ib_qp *ibqp,
-                        struct dis_wq *wq, 
-                        struct ib_sge *sg_list, 
-                        int num_sge, 
-                        enum ib_wc_opcode opcode)
+int dis_qp_post_one_sqe(struct dis_wq *sq,
+                        const struct ib_send_wr *send_wr)
 {
     int i;
     u64 *page_pa, page_offset, sge_va, sge_length, sge_chunk;
-    struct dis_pd *pd = to_dis_pd(ibqp->pd);
-    struct dis_wqe *wqe;
+    struct dis_pd *pd = to_dis_pd(sq->ibqp->pd);
+    struct dis_wqe *sqe;
     struct dis_mr *mr;
     struct ib_sge *ibsge;
     struct iovec *iov;
     pr_devel(DIS_STATUS_START);
 
-    wqe = wq->wqe_queue + (wq->wqe_put % wq->wqe_max);
-    if(wqe->valid) {
+    sqe = sq->wqe_queue + (sq->wqe_put % sq->wqe_max);
+    if (sqe->valid) {
         pr_devel(DIS_STATUS_FAIL);
         return -42;
     }
 
-    wqe->valid      = 1;
-    wqe->opcode     = opcode;
-    wqe->sci_msq    = &wq->sci_msq;
-    wqe->byte_len   = 0;
-    wqe->ibqp       = ibqp;
+    sqe->valid      = 1;
+    sqe->opcode     = IB_WC_SEND;
+    sqe->sci_msq    = &sq->sci_msq;
+    sqe->byte_len   = 0;
+    sqe->ibqp       = sq->ibqp;
+    sqe->wr_id      = send_wr->wr_id;
 
-    wqe->sci_msg.cmsg_valid = 0;
-    wqe->sci_msg.page       = NULL;
-    wqe->sci_msg.iov        = wqe->iov;
-    wqe->sci_msg.iovlen     = 0;
+    sqe->sci_msg.cmsg_valid = 0;
+    sqe->sci_msg.page       = NULL;
+    sqe->sci_msg.iov        = sqe->iov;
+    sqe->sci_msg.iovlen     = 0;
 
-    for (i = 0; i < min(num_sge, DIS_SGE_PER_WQE); i++) {
-        ibsge       = &sg_list[i];
-        mr          = &pd->mr_list[ibsge->lkey];
+    for (i = 0; i < min(send_wr->num_sge, DIS_SGE_PER_WQE); i++) {
+        ibsge   = &send_wr->sg_list[i];
+        mr      = pd->mr_list[ibsge->lkey];
+        if (!mr) {
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+
         sge_va      = (uintptr_t)(ibsge->addr);
         sge_length  = ibsge->length;
         page_pa     = mr->page_pa;
@@ -282,22 +287,93 @@ int dis_qp_post_one_wqe(struct ib_qp *ibqp,
         }
 
         /* Create IO Vectors for each page chunk */
-        while (sge_length > 0 && wqe->sci_msg.iovlen < DIS_PAGE_PER_SGE) {
+        while (sge_length > 0 && sqe->sci_msg.iovlen < DIS_PAGE_PER_SGE) {
             sge_chunk   = min(sge_length, DIS_PAGE_SIZE - page_offset);
-            iov         = &wqe->iov[wqe->sci_msg.iovlen];
+            iov         = &sqe->iov[sqe->sci_msg.iovlen];
 
             iov->iov_base   = (void *)(*page_pa + page_offset);
             iov->iov_len    = (size_t)sge_chunk;
-            wqe->byte_len   += sge_chunk;
+            sqe->byte_len   += sge_chunk;
 
             sge_length -= sge_chunk;
             page_offset = 0;
             page_pa++;
-            wqe->sci_msg.iovlen++;
+            sqe->sci_msg.iovlen++;
         }
     }
 
-    wq->wqe_put++;
+    sq->wqe_put++;
+    
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
+}
+
+int dis_qp_post_one_rqe(struct dis_wq *rq,
+                        const struct ib_recv_wr *recv_wr)
+{ 
+    int i;
+    u64 *page_pa, page_offset, sge_va, sge_length, sge_chunk;
+    struct dis_pd *pd = to_dis_pd(rq->ibqp->pd);
+    struct dis_wqe *rqe;
+    struct dis_mr *mr;
+    struct ib_sge *ibsge;
+    struct iovec *iov;
+    pr_devel(DIS_STATUS_START);
+
+    rqe = rq->wqe_queue + (rq->wqe_put % rq->wqe_max);
+    if (rqe->valid) {
+        pr_devel(DIS_STATUS_FAIL);
+        return -42;
+    }
+
+    rqe->valid      = 1;
+    rqe->opcode     = IB_WC_RECV;
+    rqe->sci_msq    = &rq->sci_msq;
+    rqe->byte_len   = 0;
+    rqe->ibqp       = rq->ibqp;
+    rqe->wr_id      = recv_wr->wr_id;
+
+    rqe->sci_msg.cmsg_valid = 0;
+    rqe->sci_msg.page       = NULL;
+    rqe->sci_msg.iov        = rqe->iov;
+    rqe->sci_msg.iovlen     = 0;
+
+    for (i = 0; i < min(recv_wr->num_sge, DIS_SGE_PER_WQE); i++) {
+        ibsge   = &recv_wr->sg_list[i];
+        mr      = pd->mr_list[ibsge->lkey];
+        if (!mr) {
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+
+        sge_va      = (uintptr_t)(ibsge->addr);
+        sge_length  = ibsge->length;
+        page_pa     = mr->page_pa;
+        page_offset = (sge_va - mr->mr_va) + mr->mr_va_offset;
+
+        /* Find offset into the first page */
+        while (page_offset >= DIS_PAGE_SIZE) {
+            page_offset -= DIS_PAGE_SIZE;
+            page_pa++;
+        }
+
+        /* Create IO Vectors for each page chunk */
+        while (sge_length > 0 && rqe->sci_msg.iovlen < DIS_PAGE_PER_SGE) {
+            sge_chunk   = min(sge_length, DIS_PAGE_SIZE - page_offset);
+            iov         = &rqe->iov[rqe->sci_msg.iovlen];
+
+            iov->iov_base   = (void *)(*page_pa + page_offset);
+            iov->iov_len    = (size_t)sge_chunk;
+            rqe->byte_len   += sge_chunk;
+
+            sge_length -= sge_chunk;
+            page_offset = 0;
+            page_pa++;
+            rqe->sci_msg.iovlen++;
+        }
+    }
+
+    rq->wqe_put++;
     
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;

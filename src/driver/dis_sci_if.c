@@ -32,7 +32,7 @@ int dis_sci_if_create_msq(struct dis_wq *wq)
 {
     int l_msq_id, r_msq_id;
     sci_error_t err;
-    pr_devel(DIS_STATUS_START);
+    // pr_devel(DIS_STATUS_START);
 
     if (is_initiator) {
         l_msq_id = wq->l_qpn * 2;
@@ -63,10 +63,10 @@ int dis_sci_if_create_msq(struct dis_wq *wq)
         pr_devel("SCI_ERR_ILLEGAL_PARAMETER");
         return -42;
     case SCI_ERR_NOSPC:
-        pr_devel("SCI_ERR_NOSPC");
+        // pr_devel("SCI_ERR_NOSPC");
         return -42;
     default:
-        pr_devel("Unknown error: %d" DIS_STATUS_FAIL, err);
+        // pr_devel("Unknown error: %d" DIS_STATUS_FAIL, err);
         return -42;
     }
 }
@@ -84,7 +84,7 @@ int dis_sci_if_connect_msq(struct dis_wq *wq)
 {
     int l_msq_id, r_msq_id;
     sci_error_t err;
-    pr_devel(DIS_STATUS_START);
+    // pr_devel(DIS_STATUS_START);
 
     if (is_initiator) {
         l_msq_id = (wq->l_qpn * 2) + 1;
@@ -112,13 +112,13 @@ int dis_sci_if_connect_msq(struct dis_wq *wq)
         pr_devel(DIS_STATUS_COMPLETE);
         return 0;
     case SCI_ERR_CONNECTION_REFUSED:
-        pr_devel("SCI_ERR_CONNECTION_REFUSED");
+        // pr_devel("SCI_ERR_CONNECTION_REFUSED");
         return -42;
     case SCI_ERR_NO_SUCH_SEGMENT:
-        pr_devel("SCI_ERR_NO_SUCH_SEGMENT");
+        // pr_devel("SCI_ERR_NO_SUCH_SEGMENT");
         return -42;
     default:
-        pr_devel("Unknown error: %d", err);
+        // pr_devel("Unknown error: %d", err);
         return -42;
     }
 }
