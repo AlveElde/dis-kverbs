@@ -33,6 +33,7 @@ static const struct ib_device_ops disdevops = {
     .dereg_mr           = dis_dereg_mr,
     .destroy_cq         = dis_destroy_cq,
     .destroy_qp         = dis_destroy_qp,
+    .get_link_layer     = dis_get_link_layer,
     .get_dma_mr         = dis_get_dma_mr,
     .reg_user_mr        = dis_reg_user_mr,
     .get_port_immutable = dis_get_port_immutable, 

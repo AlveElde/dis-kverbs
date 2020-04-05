@@ -149,8 +149,8 @@ int dis_wq_init(struct dis_wq *wq)
         msleep_interruptible(sleep_ms);
     }
 
-    pr_devel(DIS_STATUS_COMPLETE);
-    return 0;
+    pr_devel(DIS_STATUS_FAIL);
+    return -42;
 }
 
 void dis_wq_exit(struct dis_wq *wq)
@@ -185,7 +185,7 @@ int dis_wq_thread(void *wq_buf)
     if (ret) {
         wq->wq_state = DIS_WQ_EXITED;
         pr_devel(DIS_STATUS_FAIL);
-        return 0;
+        return -42;
     }
  
     while (!kthread_should_stop()) {
@@ -193,7 +193,6 @@ int dis_wq_thread(void *wq_buf)
         if (ret) {
             break;
         }
-
         wq->wq_flag = DIS_WQ_EMPTY;
 
         signal = wait_event_killable(wq->wait_queue,
@@ -201,11 +200,6 @@ int dis_wq_thread(void *wq_buf)
                                         kthread_should_stop());
         if (signal) {
             pr_devel("Kill signal received, exiting!");
-            break;
-        }
-
-        if (kthread_should_stop()) {
-            pr_devel("Kernel thread should stop, exiting!");
             break;
         }
     }
@@ -407,7 +401,9 @@ void dis_qp_exit(struct dis_wq *wq)
 
     kthread_stop(wq->thread);
     wake_up(&wq->wait_queue);
-    wake_up_process(wq->thread);
+    while (wq->wq_state != DIS_WQ_EXITED) {
+        msleep(5);
+    }
 
     pr_devel(DIS_STATUS_COMPLETE);
 }

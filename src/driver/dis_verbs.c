@@ -106,6 +106,11 @@ int dis_get_port_immutable(struct ib_device *ibdev, u8 port_num,
     return 0;
 }
 
+enum rdma_link_layer dis_get_link_layer(struct ib_device *ibdev, u8 port_num)
+{
+	return IB_LINK_LAYER_UNSPECIFIED;
+}
+
 int dis_query_pkey(struct ib_device *ibdev, u8 port, u16 index,
                     u16 *pkey)
 {
@@ -157,14 +162,14 @@ struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access)
 struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd, 
                                 u64 start,
                                 u64 length,
-                                u64 hca_va,
+                                u64 va,
                                 int access,
                                 struct ib_udata *udata)
 {
     u64 *page_pa;
     struct dis_mr *mr;
     struct dis_pd *pd = to_dis_pd(ibpd);
-    struct sg_page_iter	sg_iter;
+    struct sg_page_iter	sg;
     pr_devel(DIS_STATUS_START);
     
     if (pd->mr_c >= DIS_MR_MAX) {
@@ -172,33 +177,38 @@ struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd,
         goto no_mr_left_err;
     }
 
+    /* Allocate memory for MR structure */
     mr = kzalloc(sizeof(struct dis_mr), GFP_KERNEL);
     if (!mr) {
         pr_devel(DIS_STATUS_FAIL);
         goto mr_alloc_err;
     }
 
-    mr->ibumem  = ib_umem_get(udata, start, length, access);
+    /* Pin the page(s) containing the user segment */
+    mr->ibumem = ib_umem_get(udata, start, length, access);
     if (IS_ERR(mr->ibumem)) {
         pr_devel(DIS_STATUS_FAIL);
         goto ib_umem_get_err;
     }
 
+    /* Retrieve the number of pages pinned in previous step */
     mr->page_count = ib_umem_page_count(mr->ibumem);
     if (!mr->page_count) {
         pr_devel(DIS_STATUS_FAIL);
         goto page_count_err;
     }
 
+    /* Allocate memory for a list of physical page addresses */
     mr->page_pa = kzalloc(sizeof(u64) * mr->page_count, GFP_KERNEL);
     if (!mr->page_pa) {
         pr_devel(DIS_STATUS_FAIL);
-        goto alloc_iov_err;
+        goto page_pa_alloc_err;
     }
 
+    /* Store the physical address of the start of each pinned page */
     page_pa = mr->page_pa;
-    for_each_sg_page (mr->ibumem->sg_head.sgl, &sg_iter, mr->ibumem->nmap, 0) {
-        *page_pa = (uintptr_t)page_address(sg_page_iter_page(&sg_iter));
+    for_each_sg_page (mr->ibumem->sg_head.sgl, &sg, mr->ibumem->nmap, 0) {
+        *page_pa = (uintptr_t)page_address(sg_page_iter_page(&sg));
         if (!(*page_pa)) {
             pr_devel(DIS_STATUS_FAIL);
             goto page_address_err;
@@ -206,10 +216,13 @@ struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd,
         page_pa++;
     }
 
-    mr->mr_va = hca_va;
+    /* Store the virtual address start, length, and offset */
+    mr->mr_va = va;
+    mr->mr_length = length;
     mr->mr_va_offset = ib_umem_offset(mr->ibumem);
-    mr->ibmr.lkey = pd->mr_c;
 
+    /* Obtain an l_key and register this MR with PD */
+    mr->ibmr.lkey = pd->mr_c;
     pd->mr_list[pd->mr_c] = mr;
     pd->mr_c++;
 
@@ -219,7 +232,7 @@ struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd,
 page_address_err:
     kfree(mr->page_pa);
 
-alloc_iov_err:
+page_pa_alloc_err:
 page_count_err:
     ib_umem_release(mr->ibumem);
 
@@ -237,11 +250,7 @@ int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
     pr_devel(DIS_STATUS_START);
 
     kfree(mr->page_pa);
-
-    if (mr->ibumem) {
-        ib_umem_release(mr->ibumem);
-    }
-
+    ib_umem_release(mr->ibumem);
     kfree(mr);
 
     pr_devel(DIS_STATUS_COMPLETE);
@@ -278,20 +287,18 @@ int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *init_attr,
 int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc)
 {
     int i, wc_count;
-    unsigned long flags;
     struct dis_cq *cq = to_dis_cq(ibcq);
     struct dis_cqe* cqe;
     struct ib_wc *ibwc_iter;
     // pr_devel(DIS_STATUS_START);
 
     ibwc_iter = ibwc;
+    wc_count = 0;
     for (i = 0; i < num_wc; i++) {
-        spin_lock_irqsave(&cq->cqe_lock, flags);
 
         cqe = cq->cqe_queue + (cq->cqe_get % cq->cqe_max);
 
         if(!cqe->valid) {
-            spin_unlock_irqrestore(&cq->cqe_lock, flags);
             break;
         }
         ibwc_iter->wr_id    = cqe->wr_id;
@@ -304,7 +311,6 @@ int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc)
         cq->cqe_get++;
         ibwc_iter++;
         wc_count++;
-        spin_unlock_irqrestore(&cq->cqe_lock, flags);
     }
     
     // pr_devel(DIS_STATUS_COMPLETE);
@@ -342,12 +348,14 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
         goto no_qp_left_err;
     }
 
+    /* Allocate memory for QP structure */
     qp = kzalloc(sizeof(struct dis_qp), GFP_KERNEL);
     if (!qp) {
         pr_devel(DIS_STATUS_FAIL);
         goto qp_alloc_err;
     }
 
+    /* Set QP attributes */
     qp->dev             = to_dis_dev(ibpd->device);
     qp->sq_sig_type     = init_attr->sq_sig_type;
     qp->type            = init_attr->qp_type;
@@ -363,38 +371,45 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
     qp->ibqp.qp_type    = init_attr->qp_type;
     qp->ibqp.qp_num     = qp->l_qpn;
 
+    /* Set SQ attributes*/
     qp->sq.ibqp         = &qp->ibqp;
     qp->sq.cq           = to_dis_cq(init_attr->send_cq);
     qp->sq.sge_max      = init_attr->cap.max_send_sge;
     qp->sq.inline_max   = init_attr->cap.max_inline_data;
+    qp->sq.wqe_max      = roundup_pow_of_two(init_attr->cap.max_send_wr);
     qp->sq.wqe_get      = 0;
     qp->sq.wqe_put      = 0;
     qp->sq.wq_type      = DIS_SQ;
-    qp->sq.wqe_max      = roundup_pow_of_two(init_attr->cap.max_send_wr);
-    qp->sq.wqe_queue    = kzalloc(sizeof(struct dis_wqe) * qp->sq.wqe_max, 
-                            GFP_KERNEL);
+    
+    /* Allocate memory for SQ */
+    qp->sq.wqe_queue = kzalloc(sizeof(struct dis_wqe) * qp->sq.wqe_max, 
+                                GFP_KERNEL);
     if (!qp->sq.wqe_queue) {
         pr_devel(DIS_STATUS_FAIL);
         goto create_qp_alloc_sq_err;
     }
     memset(qp->sq.wqe_queue, 0, sizeof(struct dis_wqe) * qp->sq.wqe_max);
 
+    /* Set RQ attributes */
     qp->rq.ibqp         = &qp->ibqp;
     qp->rq.cq           = to_dis_cq(init_attr->recv_cq);
     qp->rq.sge_max      = init_attr->cap.max_recv_sge;
     qp->rq.inline_max   = init_attr->cap.max_inline_data;
+    qp->rq.wqe_max      = roundup_pow_of_two(init_attr->cap.max_recv_wr);
     qp->rq.wqe_get      = 0;
     qp->rq.wqe_put      = 0;
     qp->rq.wq_type      = DIS_RQ;
-    qp->rq.wqe_max      = roundup_pow_of_two(init_attr->cap.max_recv_wr);
-    qp->rq.wqe_queue    = kzalloc(sizeof(struct dis_wqe) * qp->rq.wqe_max, 
-                            GFP_KERNEL);
+
+    /* Allocate memory for RQ */
+    qp->rq.wqe_queue = kzalloc(sizeof(struct dis_wqe) * qp->rq.wqe_max, 
+                                GFP_KERNEL);
     if (!qp->rq.wqe_queue) {
         pr_devel(DIS_STATUS_FAIL);
         goto create_qp_alloc_rq_err;
     }
     memset(qp->rq.wqe_queue, 0, sizeof(struct dis_wqe) * qp->rq.wqe_max);
 
+    /* Register QP with PD */
     pd->qp_list[pd->qp_c] = qp;
     pd->qp_c++;
     
@@ -418,7 +433,7 @@ int dis_query_qp(struct ib_qp *ibqp,
                     struct ib_qp_init_attr *init_attr)
 {
     pr_devel(DIS_STATUS_START);
-
+    //TODO: Implement function.
     pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
@@ -435,16 +450,19 @@ int dis_modify_qp(struct ib_qp *ibqp,
     if (attr_mask & IB_QP_STATE) {
         switch (attr->qp_state) {
         case IB_QPS_RESET:
+            /* Transition QP state to RESET */
             pr_devel("Modify QP state: RESET");
+            //TODO: Reset QP.
             break;
 
         case IB_QPS_INIT:
+            /* Transition QP state to INIT */
             pr_devel("Modify QP state: INIT");
-            qp->rq.mtu = qp->mtu;
-            qp->sq.mtu = qp->mtu;
+            //TODO: Handle init attrs.
             break;
 
         case IB_QPS_RTR:
+            /* Transition QP state to RTR */
             pr_devel("Modify QP state: RTR");
             if (attr_mask & IB_QP_DEST_QPN) {
                 // qp->r_qpn    = attr->dest_qp_num;
@@ -470,6 +488,7 @@ int dis_modify_qp(struct ib_qp *ibqp,
             break;
 
         case IB_QPS_RTS:
+            /* Transition QP state to RTS */
             pr_devel("Modify QP state: RTS");
             ret = dis_qp_init(&qp->sq);
             if(ret) {
@@ -595,7 +614,7 @@ int dis_modify_srq(struct ib_srq *ibsrq,
     pr_devel(DIS_STATUS_START);
     spin_lock_irqsave(&srq->srq_lock, flags);
     
-    //TODO
+    //TODO: Implement function.
 
     spin_unlock_irqrestore(&srq->srq_lock, flags);
     pr_devel(DIS_STATUS_COMPLETE);
@@ -622,47 +641,27 @@ int dis_post_srq_recv(struct ib_srq *ibsrq,
                         const struct ib_recv_wr *recv_wr,
                         const struct ib_recv_wr **bad_wr)
 {
-    // int i;
-    // unsigned long flags;
-    // struct dis_srq *srq = to_dis_srq(ibsrq);
-    // struct dis_wqe *rqe;
-    // const struct ib_recv_wr *recv_wr_iter;
-    // pr_devel(DIS_STATUS_START);
-    // spin_lock_irqsave(&srq->srq_lock, flags);
+    int ret;
+    unsigned long flags;
+    struct dis_srq *srq = to_dis_srq(ibsrq);
+    const struct ib_recv_wr *recv_wr_iter;
+    pr_devel(DIS_STATUS_START);
+    spin_lock_irqsave(&srq->srq_lock, flags);
 
-    // recv_wr_iter = recv_wr;
-    // while (recv_wr_iter) {
-    //     rqe = srq->rq.wqe_queue + (srq->rq.wqe_put % srq->rq.wqe_max);
+    recv_wr_iter = recv_wr;
+    while (recv_wr_iter) {
+        ret = dis_qp_post_one_rqe(&srq->rq,
+                                    recv_wr_iter);
+        if (ret) {
+            spin_unlock_irqrestore(&srq->srq_lock, flags);
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
 
-    //     if(rqe->valid) {
-    //         pr_devel(DIS_STATUS_FAIL);
-    //         spin_unlock_irqrestore(&srq->srq_lock, flags);
-    //         return -42;
-    //     }
-
-    //     rqe->valid      = 1;
-    //     rqe->opcode     = IB_WC_RECV;
-    //     // rqe->sci_msq    = &qp->rq.sci_msq;
-
-    //     rqe->sci_msg.cmsg_valid = 0;
-    //     rqe->sci_msg.page       = NULL;
-    //     rqe->sci_msg.iov        = rqe->iov;
-    //     rqe->sci_msg.iovlen     = min(recv_wr_iter->num_sge, DIS_SGE_PER_WQE);
-
-    //     rqe->byte_len = 0;
-    //     for (i = 0; i < rqe->sci_msg.iovlen; i++) {
-    //         rqe->iov[i].iov_base    = (void *)(recv_wr_iter->sg_list[i].addr);
-    //         rqe->iov[i].iov_len     = (size_t)(recv_wr_iter->sg_list[i].length);
-    //         rqe->byte_len           += recv_wr_iter->sg_list[i].length;
-    //         rqe->lkey[i]            = recv_wr_iter->sg_list[i].lkey;
-    //     }
-
-    //     srq->rq.wqe_put++;
-    //     dis_qp_notify(&srq->rq);
-    //     recv_wr_iter = recv_wr_iter->next;
-    // }
-
-    // spin_unlock_irqrestore(&srq->srq_lock, flags);
+        dis_qp_notify(&srq->rq);
+        recv_wr_iter = recv_wr_iter->next;
+    }
+    spin_unlock_irqrestore(&srq->srq_lock, flags);
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }

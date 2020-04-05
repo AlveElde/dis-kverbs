@@ -49,6 +49,7 @@ struct dis_mr {
     u64             *page_pa;
     u64             mr_va;
     u64             mr_va_offset;
+    u64             mr_length;
     u32             page_count;
 };
 
@@ -199,6 +200,7 @@ int dis_query_device(struct ib_device *ibdev,
 int dis_query_port(struct ib_device *ibdev, 
                     u8 port,
                     struct ib_port_attr *port_attr);
+enum rdma_link_layer dis_get_link_layer(struct ib_device *ibdev, u8 port_num);
 int dis_get_port_immutable(struct ib_device *ibdev, 
                             u8 port_num,
                             struct ib_port_immutable *immutable);
@@ -212,7 +214,7 @@ void dis_dealloc_pd(struct ib_pd *ibpd, struct ib_udata *udata);
 struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd, 
                                 u64 start,
                                 u64 length,
-                                u64 hca_va,
+                                u64 va,
                                 int access,
                                 struct ib_udata *udata);
 struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access);
