@@ -371,7 +371,7 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
     qp->ibqp.qp_type    = init_attr->qp_type;
     qp->ibqp.qp_num     = qp->l_qpn;
 
-    /* Set SQ attributes*/
+    /* Set SQ attributes */
     qp->sq.ibqp         = &qp->ibqp;
     qp->sq.cq           = to_dis_cq(init_attr->send_cq);
     qp->sq.sge_max      = init_attr->cap.max_send_sge;
@@ -533,6 +533,7 @@ int dis_post_send(struct ib_qp *ibqp,
     const struct ib_send_wr *send_wr_iter;
     pr_devel(DIS_STATUS_START);
 
+    /* Post all send requests and notify SQ worker thread */
     send_wr_iter = send_wr;
     while (send_wr_iter) {
         ret = dis_qp_post_one_sqe(&qp->sq,
@@ -559,6 +560,7 @@ int dis_post_recv(struct ib_qp *ibqp,
     const struct ib_recv_wr *recv_wr_iter;
     pr_devel(DIS_STATUS_START);
 
+    /* Post all receive requests and notify RQ worker thread */
     recv_wr_iter = recv_wr;
     while (recv_wr_iter) {
         ret = dis_qp_post_one_rqe(&qp->rq,

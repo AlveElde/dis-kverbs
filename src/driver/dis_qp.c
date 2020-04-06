@@ -144,7 +144,7 @@ int dis_wq_init(struct dis_wq *wq)
             pr_devel(DIS_STATUS_FAIL);
             return -42;
         }
-
+        
         sleep_ms = min(sleep_ms + DIS_QP_SLEEP_MS_INC, DIS_QP_SLEEP_MS_MAX);
         msleep_interruptible(sleep_ms);
     }
@@ -180,6 +180,7 @@ int dis_wq_thread(void *wq_buf)
     struct dis_wq *wq = (struct dis_wq*)wq_buf;
     pr_devel(DIS_STATUS_START);
     
+    /* Initialize connection to remote QP */
     wq->wq_state = DIS_WQ_RUNNING;
     ret = dis_wq_init(wq);
     if (ret) {
@@ -187,14 +188,16 @@ int dis_wq_thread(void *wq_buf)
         pr_devel(DIS_STATUS_FAIL);
         return -42;
     }
- 
+    
     while (!kthread_should_stop()) {
+        /* Process all new work requests */
         ret = dis_wq_consume_all(wq);
         if (ret) {
             break;
         }
         wq->wq_flag = DIS_WQ_EMPTY;
 
+        /* Wait for new work requests to be posted */
         signal = wait_event_killable(wq->wait_queue,
                                         wq->wq_flag != DIS_WQ_EMPTY ||
                                         kthread_should_stop());
@@ -204,8 +207,10 @@ int dis_wq_thread(void *wq_buf)
         }
     }
 
+    /* Tear down connection to remote QP */
     dis_wq_exit(wq);
     wq->wq_state = DIS_WQ_EXITED;
+
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
@@ -214,10 +219,12 @@ int dis_qp_init(struct dis_wq *wq)
 {
     pr_devel(DIS_STATUS_START);
     
+    /* Initialize wait queue */
     init_waitqueue_head(&wq->wait_queue);
     wq->wq_state = DIS_WQ_INITIALIZED;
     wq->wq_flag  = DIS_WQ_EMPTY;
 
+    /* Create worker thread */
     wq->thread = kthread_create(dis_wq_thread, (void*)wq, "DIS WQ Thread");//TODO: More descriptive name
     if (!wq->thread) {
         pr_devel(DIS_STATUS_FAIL);
@@ -225,6 +232,7 @@ int dis_qp_init(struct dis_wq *wq)
         return -42;
     }
     
+    /* Start worker thread */
     wake_up_process(wq->thread);
 
     pr_devel(DIS_STATUS_COMPLETE);
@@ -243,12 +251,14 @@ int dis_qp_post_one_sqe(struct dis_wq *sq,
     struct iovec *iov;
     pr_devel(DIS_STATUS_START);
 
+    /* Ensure the next SQE spot in the SQ not a valid SQE */
     sqe = sq->wqe_queue + (sq->wqe_put % sq->wqe_max);
     if (sqe->valid) {
         pr_devel(DIS_STATUS_FAIL);
         return -42;
     }
 
+    /* Set SQE attributes */
     sqe->valid      = 1;
     sqe->opcode     = IB_WC_SEND;
     sqe->sci_msq    = &sq->sci_msq;
@@ -261,9 +271,12 @@ int dis_qp_post_one_sqe(struct dis_wq *sq,
     sqe->sci_msg.iov        = sqe->iov;
     sqe->sci_msg.iovlen     = 0;
 
+    /* Map each work request segment */
     for (i = 0; i < min(send_wr->num_sge, DIS_SGE_PER_WQE); i++) {
-        ibsge   = &send_wr->sg_list[i];
-        mr      = pd->mr_list[ibsge->lkey];
+        ibsge = &send_wr->sg_list[i];
+
+        /* Retrieve MR for this segment based on l_key */
+        mr = pd->mr_list[ibsge->lkey];
         if (!mr) {
             pr_devel(DIS_STATUS_FAIL);
             return -42;
@@ -274,13 +287,13 @@ int dis_qp_post_one_sqe(struct dis_wq *sq,
         page_pa     = mr->page_pa;
         page_offset = (sge_va - mr->mr_va) + mr->mr_va_offset;
 
-        /* Find offset into the first page */
+        /* Find offset into the first page this segment occupies */
         while (page_offset >= DIS_PAGE_SIZE) {
             page_offset -= DIS_PAGE_SIZE;
             page_pa++;
         }
 
-        /* Create IO Vectors for each page chunk */
+        /* Map IO Vectors to each page chunk this segment occupies */
         while (sge_length > 0 && sqe->sci_msg.iovlen < DIS_PAGE_PER_SGE) {
             sge_chunk   = min(sge_length, DIS_PAGE_SIZE - page_offset);
             iov         = &sqe->iov[sqe->sci_msg.iovlen];
@@ -296,6 +309,7 @@ int dis_qp_post_one_sqe(struct dis_wq *sq,
         }
     }
 
+    /* Advance the put needle in the SQ to next SQE spot */
     sq->wqe_put++;
     
     pr_devel(DIS_STATUS_COMPLETE);
@@ -314,12 +328,14 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
     struct iovec *iov;
     pr_devel(DIS_STATUS_START);
 
+    /* Ensure the next RQE spot in the RQ not a valid RQE */
     rqe = rq->wqe_queue + (rq->wqe_put % rq->wqe_max);
     if (rqe->valid) {
         pr_devel(DIS_STATUS_FAIL);
         return -42;
     }
 
+    /* Set RQE attributes */
     rqe->valid      = 1;
     rqe->opcode     = IB_WC_RECV;
     rqe->sci_msq    = &rq->sci_msq;
@@ -332,9 +348,12 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
     rqe->sci_msg.iov        = rqe->iov;
     rqe->sci_msg.iovlen     = 0;
 
+    /* Map each work request segment */
     for (i = 0; i < min(recv_wr->num_sge, DIS_SGE_PER_WQE); i++) {
         ibsge   = &recv_wr->sg_list[i];
         mr      = pd->mr_list[ibsge->lkey];
+
+        /* Retrieve MR for this segment based on l_key */
         if (!mr) {
             pr_devel(DIS_STATUS_FAIL);
             return -42;
@@ -345,13 +364,13 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
         page_pa     = mr->page_pa;
         page_offset = (sge_va - mr->mr_va) + mr->mr_va_offset;
 
-        /* Find offset into the first page */
+        /* Find offset into the first page this segment occupies */
         while (page_offset >= DIS_PAGE_SIZE) {
             page_offset -= DIS_PAGE_SIZE;
             page_pa++;
         }
 
-        /* Create IO Vectors for each page chunk */
+        /* Map IO Vectors to each page chunk this segment occupies */
         while (sge_length > 0 && rqe->sci_msg.iovlen < DIS_PAGE_PER_SGE) {
             sge_chunk   = min(sge_length, DIS_PAGE_SIZE - page_offset);
             iov         = &rqe->iov[rqe->sci_msg.iovlen];
@@ -367,6 +386,7 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
         }
     }
 
+    /* Advance the put needle in the RQ to next RQE spot */
     rq->wqe_put++;
     
     pr_devel(DIS_STATUS_COMPLETE);
