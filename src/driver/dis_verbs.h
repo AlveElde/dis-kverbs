@@ -4,6 +4,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/kthread.h>
 #include <linux/wait.h>
+#include <linux/circ_buf.h>
 
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_mad.h>
@@ -49,7 +50,7 @@ struct dis_mr {
     u64             *page_pa;
     u64             mr_va;
     u64             mr_va_offset;
-    u64             mr_length;
+    u64             mr_length; // Size
     u32             page_count;
 };
 
@@ -63,17 +64,18 @@ struct dis_cqe {
     u32             wr_id;
     u16             status;
     u16             byte_len;
-    u8              valid;
+    // u8              valid;
     u8              opcode;
 };
 
 struct dis_cq {
     struct ib_cq    ibcq;
     struct dis_dev  *dev;
-    struct dis_cqe  *cqe_queue;
+    // struct dis_cqe  *cqe_queue;
+    struct circ_buf cqe_circ;
     spinlock_t      cqe_lock;
-    u32             cqe_get;
-    u32             cqe_put;
+    // u32             cqe_get;
+    // u32             cqe_put;
     u32             cqe_max;
 };
 
@@ -91,16 +93,14 @@ struct dis_wqe {
 
 struct dis_wq {
     struct dis_cq       *cq;
-    struct dis_wqe      *wqe_queue;
     struct ib_qp        *ibqp;
+    struct circ_buf     wqe_circ;
     struct task_struct  *thread;
     wait_queue_head_t   wait_queue;
     sci_msq_queue_t     sci_msq;
     enum dis_wq_flag    wq_flag;
     enum dis_wq_status  wq_state;
     enum dis_wq_type    wq_type;
-    u32                 wqe_get;
-    u32                 wqe_put;
     u32                 wqe_max;
     u32                 sge_max;
     u32                 inline_max;

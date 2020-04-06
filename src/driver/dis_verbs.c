@@ -264,21 +264,18 @@ int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *init_attr,
     struct ib_device *ibdev = ibcq->device;
     struct dis_dev *dev  = to_dis_dev(ibdev);
     pr_devel(DIS_STATUS_START);
+    spin_lock_init(&cq->cqe_lock);
 
     cq->dev         = dev;
-    cq->cqe_get     = 0;
-    cq->cqe_put     = 0;
-    cq->cqe_max     = roundup_pow_of_two(init_attr->cqe);
-    cq->cqe_queue   = kzalloc(sizeof(struct dis_cqe) * cq->cqe_max, 
+    cq->cqe_max     = roundup_pow_of_two(init_attr->cqe + 1);
+    ibcq->cqe       = cq->cqe_max;
+
+    cq->cqe_circ.buf = kzalloc(sizeof(struct dis_cqe) * cq->cqe_max, 
                                 GFP_KERNEL);
-    if (!cq->cqe_queue) {
+    if (!cq->cqe_circ.buf) {
         pr_devel(DIS_STATUS_FAIL);
         return -42;
     }
-    memset(cq->cqe_queue, 0, sizeof(struct dis_cqe) * cq->cqe_max);
-
-    ibcq->cqe = cq->cqe_max;
-    spin_lock_init(&cq->cqe_lock);
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -287,6 +284,7 @@ int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *init_attr,
 int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc)
 {
     int i, wc_count;
+    u64 head, tail;
     struct dis_cq *cq = to_dis_cq(ibcq);
     struct dis_cqe* cqe;
     struct ib_wc *ibwc_iter;
@@ -296,19 +294,20 @@ int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc)
     wc_count = 0;
     for (i = 0; i < num_wc; i++) {
 
-        cqe = cq->cqe_queue + (cq->cqe_get % cq->cqe_max);
-
-        if(!cqe->valid) {
+        head = smp_load_acquire(&cq->cqe_circ.head);
+        tail = cq->cqe_circ.tail;
+        if(CIRC_CNT(head, tail, cq->cqe_max) < 1) {
             break;
         }
+        cqe = (struct dis_cqe*)&cq->cqe_circ.buf[tail * sizeof(struct dis_cqe)];
+
         ibwc_iter->wr_id    = cqe->wr_id;
         ibwc_iter->status   = cqe->status;
         ibwc_iter->opcode   = cqe->opcode;
         ibwc_iter->byte_len = cqe->byte_len;
         ibwc_iter->qp       = cqe->ibqp;
 
-        cqe->valid = 0;
-        cq->cqe_get++;
+        smp_store_release(&cq->cqe_circ.tail, (tail + 1) & (cq->cqe_max - 1));
         ibwc_iter++;
         wc_count++;
     }
@@ -330,7 +329,7 @@ void dis_destroy_cq(struct ib_cq *ibcq, struct ib_udata *udata)
     struct dis_cq *cq = to_dis_cq(ibcq);
     pr_devel(DIS_STATUS_START);
 
-    kfree(cq->cqe_queue);
+    kfree(cq->cqe_circ.buf);
 
     pr_devel(DIS_STATUS_COMPLETE);
 }
@@ -376,38 +375,32 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
     qp->sq.cq           = to_dis_cq(init_attr->send_cq);
     qp->sq.sge_max      = init_attr->cap.max_send_sge;
     qp->sq.inline_max   = init_attr->cap.max_inline_data;
-    qp->sq.wqe_max      = roundup_pow_of_two(init_attr->cap.max_send_wr);
-    qp->sq.wqe_get      = 0;
-    qp->sq.wqe_put      = 0;
+    qp->sq.wqe_max      = roundup_pow_of_two(init_attr->cap.max_send_wr + 1);
     qp->sq.wq_type      = DIS_SQ;
     
     /* Allocate memory for SQ */
-    qp->sq.wqe_queue = kzalloc(sizeof(struct dis_wqe) * qp->sq.wqe_max, 
+    qp->sq.wqe_circ.buf  = kzalloc(sizeof(struct dis_wqe) * qp->sq.wqe_max, 
                                 GFP_KERNEL);
-    if (!qp->sq.wqe_queue) {
+    if (!qp->sq.wqe_circ.buf) {
         pr_devel(DIS_STATUS_FAIL);
         goto create_qp_alloc_sq_err;
     }
-    memset(qp->sq.wqe_queue, 0, sizeof(struct dis_wqe) * qp->sq.wqe_max);
 
     /* Set RQ attributes */
     qp->rq.ibqp         = &qp->ibqp;
     qp->rq.cq           = to_dis_cq(init_attr->recv_cq);
     qp->rq.sge_max      = init_attr->cap.max_recv_sge;
     qp->rq.inline_max   = init_attr->cap.max_inline_data;
-    qp->rq.wqe_max      = roundup_pow_of_two(init_attr->cap.max_recv_wr);
-    qp->rq.wqe_get      = 0;
-    qp->rq.wqe_put      = 0;
+    qp->rq.wqe_max      = roundup_pow_of_two(init_attr->cap.max_recv_wr + 1);
     qp->rq.wq_type      = DIS_RQ;
 
     /* Allocate memory for RQ */
-    qp->rq.wqe_queue = kzalloc(sizeof(struct dis_wqe) * qp->rq.wqe_max, 
+    qp->rq.wqe_circ.buf = kzalloc(sizeof(struct dis_wqe) * qp->rq.wqe_max, 
                                 GFP_KERNEL);
-    if (!qp->rq.wqe_queue) {
+    if (!qp->rq.wqe_circ.buf) {
         pr_devel(DIS_STATUS_FAIL);
         goto create_qp_alloc_rq_err;
     }
-    memset(qp->rq.wqe_queue, 0, sizeof(struct dis_wqe) * qp->rq.wqe_max);
 
     /* Register QP with PD */
     pd->qp_list[pd->qp_c] = qp;
@@ -417,7 +410,7 @@ struct ib_qp *dis_create_qp(struct ib_pd *ibpd,
     return &qp->ibqp;
 
 create_qp_alloc_rq_err:
-    kfree(qp->sq.wqe_queue);
+    kfree(qp->sq.wqe_circ.buf);
 
 create_qp_alloc_sq_err:
     kfree(qp);
@@ -516,8 +509,8 @@ int dis_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
 
     dis_qp_exit(&qp->rq);
     dis_qp_exit(&qp->sq);
-    kfree(qp->rq.wqe_queue);
-    kfree(qp->sq.wqe_queue);
+    kfree(qp->rq.wqe_circ.buf);
+    kfree(qp->sq.wqe_circ.buf);
     kfree(qp);
 
     pr_devel(DIS_STATUS_COMPLETE);
@@ -591,15 +584,13 @@ int dis_create_srq(struct ib_srq *ibsrq,
 
     // qp->rq.cq           = to_dis_cq(init_attr->recv_cq);
     srq->rq.sge_max     = attr->max_sge;
-    srq->rq.wqe_get     = 0;
-    srq->rq.wqe_put     = 0;
     srq->rq.wqe_max     = roundup_pow_of_two(attr->max_wr);
-    srq->rq.wqe_queue   = kzalloc(sizeof(struct dis_wqe) * srq->rq.wqe_max, GFP_KERNEL);
-    if (!srq->rq.wqe_queue) {
+    srq->rq.wqe_circ.buf   = kzalloc(sizeof(struct dis_wqe) * srq->rq.wqe_max, GFP_KERNEL);
+    if (!srq->rq.wqe_circ.buf) {
         pr_devel(DIS_STATUS_FAIL);
        return -42;
     }
-    memset(srq->rq.wqe_queue, 0, sizeof(struct dis_wqe) * srq->rq.wqe_max);
+    memset(srq->rq.wqe_circ.buf, 0, sizeof(struct dis_wqe) * srq->rq.wqe_max);
 
     spin_lock_init(&srq->srq_lock);
     pr_devel(DIS_STATUS_COMPLETE);
@@ -673,7 +664,7 @@ void dis_destroy_srq(struct ib_srq *ibsrq,  struct ib_udata *udata)
     struct dis_srq *srq = to_dis_srq(ibsrq);
     pr_devel(DIS_STATUS_START);
     
-    kfree(srq->rq.wqe_queue);
+    kfree(srq->rq.wqe_circ.buf);
 
     pr_devel(DIS_STATUS_COMPLETE);
 }

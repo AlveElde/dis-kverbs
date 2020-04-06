@@ -8,29 +8,30 @@ int dis_wq_post_cqe(struct dis_wq *wq,
                     struct dis_wqe *wqe,
                     enum ib_wc_status wq_status) 
 {
-    unsigned long flags;
+    unsigned long flags, head, tail;
     struct dis_cq* cq = wq->cq;
     struct dis_cqe* cqe;
     pr_devel(DIS_STATUS_START);
-
-    // TODO: Make an individual cqe lock?
     spin_lock_irqsave(&cq->cqe_lock, flags);
 
-    cqe = cq->cqe_queue + (cq->cqe_put % cq->cqe_max);
-
-    if(cqe->valid) {
+    /* Check that circular buffer is not full */
+    head = cq->cqe_circ.head;
+    tail = READ_ONCE(cq->cqe_circ.tail);
+    if(CIRC_SPACE(head, tail, cq->cqe_max) < 1) {
+        pr_devel(DIS_STATUS_FAIL);
         spin_unlock_irqrestore(&cq->cqe_lock, flags);
         return -42;
     }
+    cqe = (struct dis_cqe*)&cq->cqe_circ.buf[head * sizeof(struct dis_cqe)];
 
     cqe->wr_id      = wqe->wr_id;
     cqe->opcode     = wqe->opcode;
     cqe->byte_len   = wqe->byte_len;
     cqe->ibqp       = wqe->ibqp;
     cqe->status     = wq_status;
-    cqe->valid      = 1;
-
-    cq->cqe_put++;
+    
+    /* Advance the head of the circular buffer */
+    smp_store_release(&cq->cqe_circ.head, (head + 1) & (cq->cqe_max - 1));
 
     spin_unlock_irqrestore(&cq->cqe_lock, flags);
     pr_devel(DIS_STATUS_COMPLETE);
@@ -81,17 +82,20 @@ enum ib_wc_status dis_wq_consume_one_sqe(struct dis_wqe *wqe)
 
 int dis_wq_consume_all(struct dis_wq *wq)
 {
+    unsigned long head, tail;
     struct dis_wqe *wqe;
     enum ib_wc_status wc_status;
     pr_devel(DIS_STATUS_START);
 
     while (!kthread_should_stop()) {
-        wqe = wq->wqe_queue + (wq->wqe_get % wq->wqe_max);
-
-        if(!wqe->valid) {
+        /* Check that circular buffer is not empty */
+        head = smp_load_acquire(&wq->wqe_circ.head);
+        tail = wq->wqe_circ.tail;
+        if(CIRC_CNT(head, tail, wq->wqe_max) < 1) {
             pr_devel(DIS_STATUS_COMPLETE);
             return 0;
         }
+        wqe = (struct dis_wqe*)&wq->wqe_circ.buf[tail * sizeof(struct dis_wqe)];
 
         switch (wq->wq_type) {
         case DIS_RQ:
@@ -108,8 +112,9 @@ int dis_wq_consume_all(struct dis_wq *wq)
         }
 
         dis_wq_post_cqe(wq, wqe, wc_status);
-        wqe->valid = 0;
-        wq->wqe_get++;
+
+        /* Advance the tail of the circular buffer */
+        smp_store_release(&wq->wqe_circ.tail, (tail + 1) & (wq->wqe_max - 1));
     }
 
     pr_devel(DIS_STATUS_FAIL);
@@ -243,7 +248,7 @@ int dis_qp_post_one_sqe(struct dis_wq *sq,
                         const struct ib_send_wr *send_wr)
 {
     int i;
-    u64 *page_pa, page_offset, sge_va, sge_length, sge_chunk;
+    u64 *page_pa, page_offset, sge_va, sge_length, sge_chunk, head, tail;
     struct dis_pd *pd = to_dis_pd(sq->ibqp->pd);
     struct dis_wqe *sqe;
     struct dis_mr *mr;
@@ -251,15 +256,16 @@ int dis_qp_post_one_sqe(struct dis_wq *sq,
     struct iovec *iov;
     pr_devel(DIS_STATUS_START);
 
-    /* Ensure the next SQE spot in the SQ not a valid SQE */
-    sqe = sq->wqe_queue + (sq->wqe_put % sq->wqe_max);
-    if (sqe->valid) {
+    /* Check that circular buffer is not full */
+    head = sq->wqe_circ.head;
+    tail = READ_ONCE(sq->wqe_circ.tail);
+    if(CIRC_SPACE(head, tail, sq->wqe_max) < 1) {
         pr_devel(DIS_STATUS_FAIL);
         return -42;
     }
+    sqe = (struct dis_wqe*)&sq->wqe_circ.buf[head * sizeof(struct dis_wqe)];
 
     /* Set SQE attributes */
-    sqe->valid      = 1;
     sqe->opcode     = IB_WC_SEND;
     sqe->sci_msq    = &sq->sci_msq;
     sqe->byte_len   = 0;
@@ -309,8 +315,8 @@ int dis_qp_post_one_sqe(struct dis_wq *sq,
         }
     }
 
-    /* Advance the put needle in the SQ to next SQE spot */
-    sq->wqe_put++;
+    /* Advance the head of the circular buffer */
+    smp_store_release(&sq->wqe_circ.head, (head + 1) & (sq->wqe_max - 1));
     
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -320,7 +326,7 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
                         const struct ib_recv_wr *recv_wr)
 { 
     int i;
-    u64 *page_pa, page_offset, sge_va, sge_length, sge_chunk;
+    u64 *page_pa, page_offset, sge_va, sge_length, sge_chunk, head, tail;
     struct dis_pd *pd = to_dis_pd(rq->ibqp->pd);
     struct dis_wqe *rqe;
     struct dis_mr *mr;
@@ -328,15 +334,16 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
     struct iovec *iov;
     pr_devel(DIS_STATUS_START);
 
-    /* Ensure the next RQE spot in the RQ not a valid RQE */
-    rqe = rq->wqe_queue + (rq->wqe_put % rq->wqe_max);
-    if (rqe->valid) {
+    /* Check that circular buffer is not full */
+    head = rq->wqe_circ.head;
+    tail = READ_ONCE(rq->wqe_circ.tail);
+    if(CIRC_SPACE(head, tail, rq->wqe_max) < 1) {
         pr_devel(DIS_STATUS_FAIL);
         return -42;
     }
+    rqe = (struct dis_wqe*)&rq->wqe_circ.buf[head * sizeof(struct dis_wqe)];
 
     /* Set RQE attributes */
-    rqe->valid      = 1;
     rqe->opcode     = IB_WC_RECV;
     rqe->sci_msq    = &rq->sci_msq;
     rqe->byte_len   = 0;
@@ -386,8 +393,9 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
         }
     }
 
-    /* Advance the put needle in the RQ to next RQE spot */
-    rq->wqe_put++;
+
+    /* Advance the head of the circular buffer */
+    smp_store_release(&rq->wqe_circ.head, (head + 1) & (rq->wqe_max - 1));
     
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
@@ -422,7 +430,7 @@ void dis_qp_exit(struct dis_wq *wq)
     kthread_stop(wq->thread);
     wake_up(&wq->wait_queue);
     while (wq->wq_state != DIS_WQ_EXITED) {
-        msleep(5);
+        msleep(10);
     }
 
     pr_devel(DIS_STATUS_COMPLETE);
