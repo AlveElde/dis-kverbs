@@ -73,8 +73,16 @@ static int dis_driver_probe(struct device *dev)
     pr_devel("ib_alloc_device " DIS_STATUS_COMPLETE);
 
     disdev->dev = dev;
-
-    disdev->ibdev.uverbs_cmd_mask =
+    disdev->ibdev.node_type             = RDMA_NODE_UNSPECIFIED;
+    disdev->ibdev.phys_port_cnt         = 1;
+    disdev->ibdev.num_comp_vectors      = 1;
+    disdev->ibdev.local_dma_lkey        = 1234;
+    disdev->ibdev.node_guid             = 1234;
+    disdev->ibdev.dev.parent            = dev;
+    disdev->ibdev.dev.dma_ops           = &dma_virt_ops;
+	disdev->ibdev.dev.dma_parms         = &disdev->dma_parms;
+	disdev->dma_parms.max_segment_size  = SZ_2G;
+    disdev->ibdev.uverbs_cmd_mask       =
 		(1ull << IB_USER_VERBS_CMD_GET_CONTEXT)     |
         (1ull << IB_USER_VERBS_CMD_QUERY_DEVICE)    |
         (1ull << IB_USER_VERBS_CMD_QUERY_PORT)      |
@@ -97,19 +105,8 @@ static int dis_driver_probe(struct device *dev)
 		(1ull << IB_USER_VERBS_CMD_QUERY_SRQ)       |
 		(1ull << IB_USER_VERBS_CMD_POST_SRQ_RECV)   |
 		(1ull << IB_USER_VERBS_CMD_DESTROY_SRQ);
-
-
-    disdev->ibdev.node_type             = RDMA_NODE_UNSPECIFIED;
-    disdev->ibdev.phys_port_cnt         = 1;
-    disdev->ibdev.num_comp_vectors      = 1;
-    disdev->ibdev.local_dma_lkey        = 1234;
-    disdev->ibdev.node_guid             = 1234;
-    disdev->ibdev.dev.parent            = dev;
-    disdev->ibdev.dev.dma_ops           = &dma_virt_ops;
-	disdev->ibdev.dev.dma_parms         = &disdev->dma_parms;
-	disdev->dma_parms.max_segment_size  = SZ_2G;
     strlcpy(disdev->ibdev.name, DIS_ROPCIE_NAME, IB_DEVICE_NAME_MAX);
-    // strlcpy(disdev->ibdev.node_desc, DIS_ROPCIE_NAME, strlen(DIS_ROPCIE_NAME));
+    
     ib_set_device_ops(&(disdev->ibdev), &disdevops);
 
     ret = ib_register_device(&(disdev->ibdev), DIS_ROPCIE_NAME);

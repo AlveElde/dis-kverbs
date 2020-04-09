@@ -88,7 +88,7 @@ int dis_wq_consume_all(struct dis_wq *wq)
     pr_devel(DIS_STATUS_START);
 
     while (!kthread_should_stop()) {
-        /* Check that circular buffer is not empty */
+        /* Check if circular buffer is empty */
         head = smp_load_acquire(&wq->wqe_circ.head);
         tail = wq->wqe_circ.tail;
         if(CIRC_CNT(head, tail, wq->wqe_max) < 1) {
@@ -150,8 +150,8 @@ int dis_wq_init(struct dis_wq *wq)
             return -42;
         }
         
-        sleep_ms = min(sleep_ms + DIS_QP_SLEEP_MS_INC, DIS_QP_SLEEP_MS_MAX);
-        msleep_interruptible(sleep_ms);
+        // sleep_ms = min(sleep_ms + DIS_QP_SLEEP_MS_INC, DIS_QP_SLEEP_MS_MAX);
+        // msleep_interruptible(sleep_ms);
     }
 
     pr_devel(DIS_STATUS_FAIL);
@@ -181,7 +181,7 @@ void dis_wq_exit(struct dis_wq *wq)
 
 int dis_wq_thread(void *wq_buf)
 {
-    int ret, signal;
+    int ret;
     struct dis_wq *wq = (struct dis_wq*)wq_buf;
     pr_devel(DIS_STATUS_START);
     
@@ -203,10 +203,9 @@ int dis_wq_thread(void *wq_buf)
         wq->wq_flag = DIS_WQ_EMPTY;
 
         /* Wait for new work requests to be posted */
-        signal = wait_event_killable(wq->wait_queue,
-                                        wq->wq_flag != DIS_WQ_EMPTY ||
-                                        kthread_should_stop());
-        if (signal) {
+        ret = wait_event_killable(wq->wait_queue, wq->wq_flag != DIS_WQ_EMPTY ||
+                                    kthread_should_stop());
+        if (ret) {
             pr_devel("Kill signal received, exiting!");
             break;
         }
@@ -288,6 +287,16 @@ int dis_qp_post_one_sqe(struct dis_wq *sq,
             return -42;
         }
 
+        /* Memory can be mapped one-to-one for DMA MRs */
+        if (mr->is_dma) {
+            iov             = &sqe->iov[sqe->sci_msg.iovlen];
+            iov->iov_base   = (void *)(ibsge->addr);
+            iov->iov_len    = (size_t)ibsge->length;
+            sqe->byte_len   += ibsge->length;
+            sqe->sci_msg.iovlen++;
+            continue;
+        }
+
         sge_va      = (uintptr_t)(ibsge->addr);
         sge_length  = ibsge->length;
         page_pa     = mr->page_pa;
@@ -366,6 +375,16 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
             return -42;
         }
 
+        /* Memory can be mapped one-to-one for DMA MRs */
+        if (mr->is_dma) {
+            iov             = &rqe->iov[rqe->sci_msg.iovlen];
+            iov->iov_base   = (void *)(ibsge->addr);
+            iov->iov_len    = (size_t)ibsge->length;
+            rqe->byte_len   += ibsge->length;
+            rqe->sci_msg.iovlen++;
+            continue;
+        }
+
         sge_va      = (uintptr_t)(ibsge->addr);
         sge_length  = ibsge->length;
         page_pa     = mr->page_pa;
@@ -427,10 +446,11 @@ void dis_qp_exit(struct dis_wq *wq)
         return;
     }
 
+    /* Command the worker thread to stop and wait for it to exit */
     kthread_stop(wq->thread);
     wake_up(&wq->wait_queue);
     while (wq->wq_state != DIS_WQ_EXITED) {
-        msleep(10);
+        msleep(1);
     }
 
     pr_devel(DIS_STATUS_COMPLETE);

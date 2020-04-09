@@ -52,6 +52,7 @@ struct dis_mr {
     u64             mr_va_offset;
     u64             mr_length; // Size
     u32             page_count;
+    u8              is_dma;
 };
 
 struct dis_ah {
@@ -64,18 +65,13 @@ struct dis_cqe {
     u32             wr_id;
     u16             status;
     u16             byte_len;
-    // u8              valid;
     u8              opcode;
 };
 
 struct dis_cq {
     struct ib_cq    ibcq;
-    struct dis_dev  *dev;
-    // struct dis_cqe  *cqe_queue;
     struct circ_buf cqe_circ;
     spinlock_t      cqe_lock;
-    // u32             cqe_get;
-    // u32             cqe_put;
     u32             cqe_max;
 };
 
@@ -88,7 +84,6 @@ struct dis_wqe {
     u32             l_qpn;
     u32             byte_len;
     u8              opcode;
-    u8              valid;
 };
 
 struct dis_wq {

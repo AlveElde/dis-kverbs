@@ -10,7 +10,10 @@ KERNEL_BUILD 	:= /lib/modules/$(shell uname -r)/build
 SCI_SYMBOLS 			:= $(SCI_SRC)/Module.symvers
 KBUILD_EXTRA_SYMBOLS 	+= $(SCI_SYMBOLS)
 
-.PHONY = all req res rm rm-srp clean
+SCI_IF_REQ_PARAMS = local_adapter_no=0 remote_node_id=4 is_initiator=N use_l_qpn=Y
+SCI_IF_RES_PARAMS = local_adapter_no=0 remote_node_id=8 is_initiator=Y use_l_qpn=Y
+
+.PHONY = all req res rm req-r res-r rm-srp clean
 
 all:
 	make -C $(KERNEL_BUILD) M=$(PWD) modules
@@ -27,7 +30,7 @@ rm-srp:
 
 req: dmesg-c
 	sudo insmod $(SCI_SRC)/dis_msq.ko
-	sudo insmod $(DRV_SRC)/dis_sci_if_mod.ko local_adapter_no=0 remote_node_id=4 is_initiator=N
+	sudo insmod $(DRV_SRC)/dis_sci_if_mod.ko $(SCI_IF_REQ_PARAMS)
 	sudo insmod $(BUS_SRC)/dis_bus_mod.ko
 	sudo insmod $(DRV_SRC)/dis_driver_mod.ko
 	sudo insmod $(DEV_SRC)/dis_device_mod.ko
@@ -35,7 +38,7 @@ req: dmesg-c
 
 res: dmesg-c
 	sudo insmod $(SCI_SRC)/dis_msq.ko
-	sudo insmod $(DRV_SRC)/dis_sci_if_mod.ko local_adapter_no=0 remote_node_id=8 is_initiator=Y
+	sudo insmod $(DRV_SRC)/dis_sci_if_mod.ko $(SCI_IF_RES_PARAMS)
 	sudo insmod $(BUS_SRC)/dis_bus_mod.ko
 	sudo insmod $(DRV_SRC)/dis_driver_mod.ko
 	sudo insmod $(DEV_SRC)/dis_device_mod.ko

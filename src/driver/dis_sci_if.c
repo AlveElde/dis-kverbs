@@ -11,19 +11,22 @@ MODULE_DESCRIPTION("SCI Lib Interface");
 MODULE_AUTHOR("Alve Elde");
 MODULE_LICENSE("GPL");
 
-static unsigned int msq_flags           = 0; //SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY;
+static unsigned int msq_flags           = SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY; //SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY;
 static unsigned int timeout             = 0; // Not used
 static unsigned int local_adapter_no    = 0;
 static unsigned int remote_node_id      = 0;
 static bool is_initiator                = true;
+static bool use_l_qpn                   = true;
 
 module_param(local_adapter_no, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 module_param(remote_node_id, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 module_param(is_initiator, bool, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+module_param(use_l_qpn, bool, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
 MODULE_PARM_DESC(local_adapter_no, "");
 MODULE_PARM_DESC(remote_node_id, "");
 MODULE_PARM_DESC(is_initiator, "");
+MODULE_PARM_DESC(use_l_qpn, "");
 
 #define SCIL_INIT_FLAGS 0
 #define SCIL_EXIT_FLAGS 0
@@ -34,17 +37,15 @@ int dis_sci_if_create_msq(struct dis_wq *wq)
     sci_error_t err;
     // pr_devel(DIS_STATUS_START);
 
-    if (is_initiator) {
-        l_msq_id = wq->l_qpn * 2;
-        r_msq_id = wq->r_qpn * 2;
-    } else {
-        l_msq_id = (wq->l_qpn * 2) + 1;
-        r_msq_id = (wq->r_qpn * 2) + 1;
-    }
+    l_msq_id = wq->l_qpn;
+    r_msq_id = use_l_qpn ?  wq->l_qpn :  wq->r_qpn;
 
-    pr_devel("Targeting remote_node_id %d", remote_node_id);
-    pr_devel("Creating MSQ with l_msq_id: %d, r_msq_id: %d, wqe_max: %d, mtu: %d", 
-                l_msq_id, r_msq_id, wq->wqe_max, wq->mtu);
+    l_msq_id = is_initiator ? l_msq_id * 2 : (l_msq_id * 2) + 1;
+    r_msq_id = is_initiator ? r_msq_id * 2 : (r_msq_id * 2) + 1;
+
+    // pr_devel("Targeting remote_node_id %d", remote_node_id);
+    // pr_devel("Creating MSQ with l_msq_id: %d, r_msq_id: %d, wqe_max: %d, mtu: %d", 
+                // l_msq_id, r_msq_id, wq->wqe_max, wq->mtu);
     err = SCILCreateMsgQueue(&(wq->sci_msq),
                                 local_adapter_no,
                                 remote_node_id,
@@ -60,7 +61,7 @@ int dis_sci_if_create_msq(struct dis_wq *wq)
         pr_devel(DIS_STATUS_COMPLETE);
         return 0;
     case SCI_ERR_ILLEGAL_PARAMETER:
-        pr_devel("SCI_ERR_ILLEGAL_PARAMETER");
+        // pr_devel("SCI_ERR_ILLEGAL_PARAMETER");
         return -42;
     case SCI_ERR_NOSPC:
         // pr_devel("SCI_ERR_NOSPC");
@@ -86,17 +87,15 @@ int dis_sci_if_connect_msq(struct dis_wq *wq)
     sci_error_t err;
     // pr_devel(DIS_STATUS_START);
 
-    if (is_initiator) {
-        l_msq_id = (wq->l_qpn * 2) + 1;
-        r_msq_id = (wq->r_qpn * 2) + 1;
-    } else {
-        l_msq_id = wq->l_qpn * 2;
-        r_msq_id = wq->r_qpn * 2;
-    }
+    l_msq_id = wq->l_qpn;
+    r_msq_id = use_l_qpn ?  wq->l_qpn :  wq->r_qpn;
 
-    pr_devel("Targeting remote_node_id %d", remote_node_id);
-    pr_devel("Connecting MSQ with l_msq_id: %d, r_msq_id: %d, wqe_max: %d, mtu: %d", 
-                l_msq_id, r_msq_id, wq->wqe_max, wq->mtu);
+    l_msq_id = is_initiator ? (l_msq_id * 2) + 1 : l_msq_id * 2;
+    r_msq_id = is_initiator ? (r_msq_id * 2) + 1 : r_msq_id * 2;
+
+    // pr_devel("Targeting remote_node_id %d", remote_node_id);
+    // pr_devel("Connecting MSQ with l_msq_id: %d, r_msq_id: %d, wqe_max: %d, mtu: %d", 
+                // l_msq_id, r_msq_id, wq->wqe_max, wq->mtu);
     err = SCILConnectMsgQueue(&(wq->sci_msq), 
                                 local_adapter_no, 
                                 remote_node_id, 
@@ -146,7 +145,7 @@ int dis_sci_if_send_v_msg(struct dis_wqe *wqe)
     switch (err)
     {
     case SCI_ERR_OK:
-        pr_devel(DIS_STATUS_COMPLETE);
+        // pr_devel(DIS_STATUS_COMPLETE);
         return 0;
     case SCI_ERR_EWOULD_BLOCK:
         // pr_devel("SCI_ERR_EWOULD_BLOCK: " DIS_STATUS_FAIL);
@@ -178,7 +177,7 @@ int dis_sci_if_receive_v_msg(struct dis_wqe *wqe)
     switch (err)
     {
     case SCI_ERR_OK:
-        pr_devel(DIS_STATUS_COMPLETE);
+        // pr_devel(DIS_STATUS_COMPLETE);
         return 0;
     case SCI_ERR_EWOULD_BLOCK:
         // pr_devel("SCI_ERR_EWOULD_BLOCK");

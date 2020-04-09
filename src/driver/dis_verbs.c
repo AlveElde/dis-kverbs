@@ -147,13 +147,26 @@ void dis_dealloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
 struct ib_mr *dis_get_dma_mr(struct ib_pd *ibpd, int access)
 {
     struct dis_mr *mr;
+    struct dis_pd *pd = to_dis_pd(ibpd);
     pr_devel(DIS_STATUS_START);
 
+    if (pd->mr_c >= DIS_MR_MAX) {
+        pr_devel(DIS_STATUS_FAIL);
+        return ERR_PTR(-EINVAL);
+    }
+
+    /* Allocate memory for MR structure */
     mr = kzalloc(sizeof(struct dis_mr), GFP_KERNEL);
     if (!mr) {
         pr_devel(DIS_STATUS_FAIL);
-        return NULL;
+        return ERR_PTR(-EINVAL);
     }
+    mr->is_dma = 1;
+
+    /* Obtain an l_key and register this MR with PD */
+    mr->ibmr.lkey = pd->mr_c;
+    pd->mr_list[pd->mr_c] = mr;
+    pd->mr_c++;
 
     pr_devel(DIS_STATUS_COMPLETE);
     return &mr->ibmr;
@@ -248,9 +261,11 @@ int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
 {
     struct dis_mr *mr = to_dis_mr(ibmr);
     pr_devel(DIS_STATUS_START);
-
-    kfree(mr->page_pa);
-    ib_umem_release(mr->ibumem);
+    
+    if (!mr->is_dma) {
+        kfree(mr->page_pa);
+        ib_umem_release(mr->ibumem);
+    }
     kfree(mr);
 
     pr_devel(DIS_STATUS_COMPLETE);
@@ -260,16 +275,15 @@ int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
 int dis_create_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *init_attr,
                     struct ib_udata *udata)
 {
-    struct dis_cq *cq    = to_dis_cq(ibcq);
-    struct ib_device *ibdev = ibcq->device;
-    struct dis_dev *dev  = to_dis_dev(ibdev);
+    struct dis_cq *cq = to_dis_cq(ibcq);
     pr_devel(DIS_STATUS_START);
+
+    /* Initialize CQ attributes */
     spin_lock_init(&cq->cqe_lock);
+    cq->cqe_max = roundup_pow_of_two(init_attr->cqe + 1);
+    ibcq->cqe = cq->cqe_max;
 
-    cq->dev         = dev;
-    cq->cqe_max     = roundup_pow_of_two(init_attr->cqe + 1);
-    ibcq->cqe       = cq->cqe_max;
-
+    /* Allocate memory for CQE buffer */
     cq->cqe_circ.buf = kzalloc(sizeof(struct dis_cqe) * cq->cqe_max, 
                                 GFP_KERNEL);
     if (!cq->cqe_circ.buf) {
@@ -290,10 +304,11 @@ int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc)
     struct ib_wc *ibwc_iter;
     // pr_devel(DIS_STATUS_START);
 
+    /* Consume num_wc CQEs from the CQ */
     ibwc_iter = ibwc;
     wc_count = 0;
     for (i = 0; i < num_wc; i++) {
-
+        /* Check if circular buffer is empty */
         head = smp_load_acquire(&cq->cqe_circ.head);
         tail = cq->cqe_circ.tail;
         if(CIRC_CNT(head, tail, cq->cqe_max) < 1) {
@@ -301,6 +316,7 @@ int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc)
         }
         cqe = (struct dis_cqe*)&cq->cqe_circ.buf[tail * sizeof(struct dis_cqe)];
 
+        /* Set work completion attributes */
         ibwc_iter->wr_id    = cqe->wr_id;
         ibwc_iter->status   = cqe->status;
         ibwc_iter->opcode   = cqe->opcode;
