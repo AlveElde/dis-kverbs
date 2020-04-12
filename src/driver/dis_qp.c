@@ -196,11 +196,11 @@ int dis_wq_thread(void *wq_buf)
     
     while (!kthread_should_stop()) {
         /* Process all new work requests */
+        wq->wq_flag = DIS_WQ_EMPTY;
         ret = dis_wq_consume_all(wq);
         if (ret) {
             break;
         }
-        wq->wq_flag = DIS_WQ_EMPTY;
 
         /* Wait for new work requests to be posted */
         ret = wait_event_killable(wq->wait_queue, wq->wq_flag != DIS_WQ_EMPTY ||
