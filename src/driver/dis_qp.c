@@ -4,7 +4,7 @@
 #include "dis_qp.h"
 #include "dis_sci_if.h"
 
-int dis_wq_post_cqe(struct dis_wq *wq, 
+int dis_wq_post_sqe_cqe(struct dis_wq *wq, 
                     struct dis_wqe *wqe,
                     enum ib_wc_status wq_status) 
 {
@@ -38,7 +38,41 @@ int dis_wq_post_cqe(struct dis_wq *wq,
     return 0;
 }
 
-enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wqe *wqe)
+int dis_wq_post_rqe_cqe(struct dis_wq *wq, 
+                    struct dis_wqe *wqe,
+                    enum ib_wc_status wq_status) 
+{
+    unsigned long flags, head, tail;
+    struct dis_cq* cq = wq->cq;
+    struct dis_cqe* cqe;
+    pr_devel(DIS_STATUS_START);
+    spin_lock_irqsave(&cq->cqe_lock, flags);
+
+    /* Check that circular buffer is not full */
+    head = cq->cqe_circ.head;
+    tail = READ_ONCE(cq->cqe_circ.tail);
+    if(CIRC_SPACE(head, tail, cq->cqe_max) < 1) {
+        pr_devel(DIS_STATUS_FAIL);
+        spin_unlock_irqrestore(&cq->cqe_lock, flags);
+        return -42;
+    }
+    cqe = (struct dis_cqe*)&cq->cqe_circ.buf[head * sizeof(struct dis_cqe)];
+
+    cqe->wr_id      = wqe->wr_id;
+    cqe->opcode     = wqe->opcode;
+    cqe->byte_len   = wqe->byte_len;
+    cqe->ibqp       = wqe->ibqp;
+    cqe->status     = wq_status;
+    
+    /* Advance the head of the circular buffer */
+    smp_store_release(&cq->cqe_circ.head, (head + 1) & (cq->cqe_max - 1));
+
+    spin_unlock_irqrestore(&cq->cqe_lock, flags);
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
+}
+
+enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wq *wq, struct dis_wqe *wqe)
 {
     int ret, bytes_left, bytes_total;
     pr_devel(DIS_STATUS_START);
@@ -53,17 +87,21 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wqe *wqe)
             if(bytes_left == 0) {
                 pr_devel(DIS_STATUS_COMPLETE);
                 wqe->byte_len = bytes_total;
+                dis_wq_post_rqe_cqe(wq, wqe, IB_WC_SUCCESS);
                 return IB_WC_SUCCESS;
             }
             wqe->byte_len = bytes_left;
+            pr_devel("Partial receive!");
         }
     }
+
+    dis_wq_post_rqe_cqe(wq, wqe, IB_WC_RESP_TIMEOUT_ERR);
 
     pr_devel(DIS_STATUS_FAIL);
     return IB_WC_RESP_TIMEOUT_ERR;
 }
 
-enum ib_wc_status dis_wq_consume_one_sqe(struct dis_wqe *wqe)
+enum ib_wc_status dis_wq_consume_one_sqe(struct dis_wq *wq, struct dis_wqe *wqe)
 {
     int ret;
     pr_devel(DIS_STATUS_START);
@@ -72,10 +110,13 @@ enum ib_wc_status dis_wq_consume_one_sqe(struct dis_wqe *wqe)
         ret = dis_sci_if_send_v_msg(wqe);
         if (!ret) {
             pr_devel(DIS_STATUS_COMPLETE);
+            dis_wq_post_sqe_cqe(wq, wqe, IB_WC_SUCCESS);
             return IB_WC_SUCCESS;
         }
     }
 
+   
+    dis_wq_post_sqe_cqe(wq, wqe, IB_WC_RESP_TIMEOUT_ERR);
     pr_devel(DIS_STATUS_FAIL);
     return IB_WC_RESP_TIMEOUT_ERR;
 }
@@ -99,11 +140,11 @@ int dis_wq_consume_all(struct dis_wq *wq)
 
         switch (wq->wq_type) {
         case DIS_RQ:
-            wc_status = dis_wq_consume_one_rqe(wqe);
+            wc_status = dis_wq_consume_one_rqe(wq, wqe);
             break;
 
         case DIS_SQ:
-            wc_status = dis_wq_consume_one_sqe(wqe);
+            wc_status = dis_wq_consume_one_sqe(wq, wqe);
             break;
 
         default:
@@ -111,7 +152,7 @@ int dis_wq_consume_all(struct dis_wq *wq)
             return -42;
         }
 
-        dis_wq_post_cqe(wq, wqe, wc_status);
+        // dis_wq_post_cqe(wq, wqe, wc_status);
 
         /* Advance the tail of the circular buffer */
         smp_store_release(&wq->wqe_circ.tail, (tail + 1) & (wq->wqe_max - 1));
@@ -150,8 +191,6 @@ int dis_wq_init(struct dis_wq *wq)
             return -42;
         }
         
-        // sleep_ms = min(sleep_ms + DIS_QP_SLEEP_MS_INC, DIS_QP_SLEEP_MS_MAX);
-        // msleep_interruptible(sleep_ms);
     }
 
     pr_devel(DIS_STATUS_FAIL);
@@ -412,7 +451,6 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
         }
     }
 
-
     /* Advance the head of the circular buffer */
     smp_store_release(&rq->wqe_circ.head, (head + 1) & (rq->wqe_max - 1));
     
@@ -441,7 +479,7 @@ void dis_qp_exit(struct dis_wq *wq)
 {
     pr_devel(DIS_STATUS_START);
 
-    if (wq->wq_state == DIS_WQ_UNINITIALIZED) {
+    if (wq->wq_state == DIS_WQ_UNINITIALIZED || wq->wq_state == DIS_WQ_EXITED) {
         pr_devel(DIS_STATUS_COMPLETE);
         return;
     }

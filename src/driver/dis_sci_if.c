@@ -11,7 +11,7 @@ MODULE_DESCRIPTION("SCI Lib Interface");
 MODULE_AUTHOR("Alve Elde");
 MODULE_LICENSE("GPL");
 
-static unsigned int msq_flags           = SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY; //SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY;
+static unsigned int msq_flags           = 0; 
 static unsigned int timeout             = 0; // Not used
 static unsigned int local_adapter_no    = 0;
 static unsigned int remote_node_id      = 0;
@@ -51,8 +51,8 @@ int dis_sci_if_create_msq(struct dis_wq *wq)
                                 remote_node_id,
                                 l_msq_id,
                                 r_msq_id,
-                                wq->wqe_max,
-                                wq->mtu,
+                                DIS_MSG_MAX,
+                                DIS_MSG_SIZE_MAX,
                                 timeout,
                                 msq_flags);
     switch (err)
@@ -101,8 +101,8 @@ int dis_sci_if_connect_msq(struct dis_wq *wq)
                                 remote_node_id, 
                                 l_msq_id,
                                 r_msq_id,
-                                wq->wqe_max,
-                                wq->mtu,
+                                DIS_MSG_MAX,
+                                DIS_MSG_SIZE_MAX,
                                 timeout, 
                                 msq_flags);
     switch (err)
@@ -141,7 +141,9 @@ int dis_sci_if_send_v_msg(struct dis_wqe *wqe)
                         &wqe->sci_msg,
                         wqe->byte_len,
                         &free,
-                        SCIL_FLAG_MSG_FLUSH | SCIL_FLAG_MESSAGE_MODE);
+                        SCIL_FLAG_MSG_FLUSH | 
+                        SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
+                        );
     switch (err)
     {
     case SCI_ERR_OK:
@@ -173,7 +175,8 @@ int dis_sci_if_receive_v_msg(struct dis_wqe *wqe)
                         &wqe->sci_msg,
                         &wqe->byte_len,
                         &free,
-                        SCIL_FLAG_MESSAGE_MODE);
+                        SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
+                        );
     switch (err)
     {
     case SCI_ERR_OK:

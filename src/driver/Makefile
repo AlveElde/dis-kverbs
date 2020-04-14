@@ -18,8 +18,8 @@ EXTRA_CFLAGS += -D_DIS_KERNEL_ 			\
 				-DCPU_ARCH_IS_X86_64 	\
 				-DADAPTER_IS_PX 		\
 				-DINTERFACE_IS_GENIF 	\
-				-DDEBUG 				\
 				-DHAVE_WAIT_QUEUE_ENTRY	\
+				# -DDEBUG 				\
 
 EXTRA_CFLAGS += -I$(KVERBS_SRC)/common						\
 				-I$(DIS_SRC)/include						\

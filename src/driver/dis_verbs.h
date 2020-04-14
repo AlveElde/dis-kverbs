@@ -16,6 +16,9 @@
 #define DIS_MR_INI          0
 #define DIS_MR_MAX          100
 
+#define DIS_MSG_MAX         2000
+#define DIS_MSG_SIZE_MAX    10000
+
 #define DIS_PAGE_SIZE       PAGE_SIZE
 #define DIS_SGE_PER_WQE     4
 #define DIS_PAGE_PER_SGE    10
