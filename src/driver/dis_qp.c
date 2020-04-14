@@ -282,6 +282,7 @@ int dis_qp_init(struct dis_wq *wq)
     return 0;
 }
 
+
 int dis_qp_post_one_sqe(struct dis_wq *sq,
                         const struct ib_send_wr *send_wr)
 {
@@ -309,9 +310,8 @@ int dis_qp_post_one_sqe(struct dis_wq *sq,
     sqe->byte_len   = 0;
     sqe->ibqp       = sq->ibqp;
     sqe->wr_id      = send_wr->wr_id;
-
+    
     sqe->sci_msg.cmsg_valid = 0;
-    sqe->sci_msg.page       = NULL;
     sqe->sci_msg.iov        = sqe->iov;
     sqe->sci_msg.iovlen     = 0;
 
