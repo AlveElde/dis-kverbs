@@ -22,7 +22,6 @@
 #define DIS_SGE_PER_WQE     4
 #define DIS_PAGE_PER_SGE    100
 #define DIS_PAGE_PER_WQE    DIS_SGE_PER_WQE * DIS_PAGE_PER_SGE
-#define DIS_FAST_PAGES      4
 
 enum dis_wq_flag {
     DIS_WQ_EMPTY,
@@ -82,14 +81,15 @@ struct dis_sge_map {
     struct iovec *mr_pages;
     u64 base_offset;
     u64 page_offset;
-    u32 page_count;
+    u64 page_count;
     u64 sge_len;
+    u8  is_dma;
 };
 
 struct dis_wqe {
     struct ib_qp    *ibqp;
     struct iovec    *page_map_dynamic;
-    struct iovec    page_map_static[DIS_FAST_PAGES];
+    struct iovec    page_map_static[DIS_SGE_PER_WQE];
     sci_msq_queue_t *sci_msq;
     sci_msg_t       sci_msg;
     u32             wr_id;

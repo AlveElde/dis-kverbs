@@ -295,7 +295,6 @@ int dis_qp_post_one_sqe(struct dis_wq *wq,
 {
     int i;
     u64 sge_chunk, head, tail;
-    u32 sge_map_page_total;
     struct dis_pd *pd = to_dis_pd(wq->ibqp->pd);
     struct dis_wqe *wqe;
     struct dis_mr *mr;
@@ -319,233 +318,14 @@ int dis_qp_post_one_sqe(struct dis_wq *wq,
     wqe->byte_len   = 0;
     wqe->ibqp       = wq->ibqp;
     wqe->wr_id      = wr->wr_id;
-    
-    wqe->sci_msg.cmsg_valid = 0;
-    sge_map_page_total = 0;
 
-    /* Map each work request segment */
+    /* Map each segment(SGE) into physical pages from the MR */
     for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
         ibsge = &wr->sg_list[i];
         sge = &sge_map[i];
 
-        /* Retrieve MR for this segment based on l_key */
+        /* Retrieve MR for this SGE based on l_key */
         mr = pd->mr_list[ibsge->lkey];
-        if (!mr) {
-            pr_devel(DIS_STATUS_FAIL);
-            return -42;
-        }
-
-        /* Memory can be mapped one-to-one for DMA MRs */
-        // if (mr->is_dma) {
-        //     iov             = &sqe->page_map_single[i];
-        //     iov->iov_base   = (void *)(ibsge->addr);
-        //     iov->iov_len    = (size_t)ibsge->length;
-        //     sqe->byte_len   += ibsge->length;
-        //     sqe->sci_msg.iovlen++;
-        //     sqe->sci_msg.iov = sqe->page_map_single;
-        //     continue;
-        // }
-
-        sge->mr_pages       = mr->pages;
-        sge->sge_len        = ibsge->length;
-        sge->base_offset    = (ibsge->addr - mr->mr_va) + mr->mr_va_offset;
-        sge->page_offset    = sge->base_offset / PAGE_SIZE;
-        sge->base_offset    -= sge->page_offset * PAGE_SIZE;
-        sge->mr_pages       += sge->page_offset;
-        sge->page_count     = 
-            ((u64)(sge->sge_len + sge->base_offset) / PAGE_SIZE) + 1;
-        sge_map_page_total  += sge->page_count;
-    }
-
-    wqe->sci_msg.iovlen = sge_map_page_total;
-
-    /*  */
-    if(sge_map_page_total <= DIS_FAST_PAGES) {
-        wqe->sci_msg.iov = wqe->page_map_static;
-    } else {
-        wqe->page_map_dynamic = kmalloc(sizeof(struct iovec) * sge_map_page_total, 
-                                        GFP_KERNEL);
-        if (!wqe->page_map_dynamic) {
-            pr_devel(DIS_STATUS_FAIL);
-            return -42;
-        }
-        wqe->sci_msg.iov = wqe->page_map_dynamic;
-    }
-    
-    /*  */
-    sge_page = wqe->sci_msg.iov;
-    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
-        sge = &sge_map[i];
-        mr_page = sge->mr_pages;
-
-        /* Map IO Vectors to each page chunk this segment occupies */
-        while (sge->sge_len > 0) {
-            sge_chunk = min(sge->sge_len, PAGE_SIZE - sge->base_offset);
-            sge_page->iov_base  = mr_page->iov_base + sge->base_offset;
-            sge_page->iov_len   = (size_t)sge_chunk;
-            wqe->byte_len       += sge_chunk;
-
-            sge->base_offset = 0;
-            sge->sge_len -= sge_chunk;
-            sge_page++;
-            mr_page++;
-        }
-    }
-
-    /* Advance the head of the circular buffer */
-    smp_store_release(&wq->wqe_circ.head, (head + 1) & (wq->wqe_max - 1));
-    pr_devel(DIS_STATUS_COMPLETE);
-    return 0;
-}
-
-#if 1
-int dis_qp_post_one_rqe(struct dis_wq *wq,
-                    const struct ib_recv_wr *wr)
-{
-    int i;
-    u64 sge_chunk, head, tail;
-    u32 sge_map_page_total;
-    struct dis_pd *pd = to_dis_pd(wq->ibqp->pd);
-    struct dis_wqe *wqe;
-    struct dis_mr *mr;
-    struct dis_sge_map sge_map[DIS_SGE_PER_WQE], *sge;
-    struct ib_sge *ibsge;
-    struct iovec *sge_page, *mr_page;
-    pr_devel(DIS_STATUS_START);
-
-    /* Check that circular buffer is not full */
-    head = wq->wqe_circ.head;
-    tail = READ_ONCE(wq->wqe_circ.tail);
-    if(CIRC_SPACE(head, tail, wq->wqe_max) < 1) {
-        pr_devel(DIS_STATUS_FAIL);
-        return -42;
-    }
-    wqe = (struct dis_wqe*)&wq->wqe_circ.buf[head * sizeof(struct dis_wqe)];
-
-    /* Set SQE attributes */
-    wqe->opcode     = IB_WC_SEND;
-    wqe->sci_msq    = &wq->sci_msq;
-    wqe->byte_len   = 0;
-    wqe->ibqp       = wq->ibqp;
-    wqe->wr_id      = wr->wr_id;
-    
-    wqe->sci_msg.cmsg_valid = 0;
-    sge_map_page_total = 0;
-
-    /* Map each work request segment */
-    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
-        ibsge = &wr->sg_list[i];
-        sge = &sge_map[i];
-
-        /* Retrieve MR for this segment based on l_key */
-        mr = pd->mr_list[ibsge->lkey];
-        if (!mr) {
-            pr_devel(DIS_STATUS_FAIL);
-            return -42;
-        }
-
-        /* Memory can be mapped one-to-one for DMA MRs */
-        // if (mr->is_dma) {
-        //     iov             = &sqe->page_map_single[i];
-        //     iov->iov_base   = (void *)(ibsge->addr);
-        //     iov->iov_len    = (size_t)ibsge->length;
-        //     sqe->byte_len   += ibsge->length;
-        //     sqe->sci_msg.iovlen++;
-        //     sqe->sci_msg.iov = sqe->page_map_single;
-        //     continue;
-        // }
-
-        sge->mr_pages       = mr->pages;
-        sge->sge_len        = ibsge->length;
-        sge->base_offset    = (ibsge->addr - mr->mr_va) + mr->mr_va_offset;
-        sge->page_offset    = sge->base_offset / PAGE_SIZE;
-        sge->base_offset    -= sge->page_offset * PAGE_SIZE;
-        sge->mr_pages       += sge->page_offset;
-        sge->page_count     = 
-            ((u64)(sge->sge_len + sge->base_offset) / PAGE_SIZE) + 1;
-        sge_map_page_total  += sge->page_count;
-    }
-
-    wqe->sci_msg.iovlen = sge_map_page_total;
-
-    /*  */
-    if(sge_map_page_total <= DIS_FAST_PAGES) {
-        wqe->sci_msg.iov = wqe->page_map_static;
-    } else {
-        wqe->page_map_dynamic = kmalloc(sizeof(struct iovec) * sge_map_page_total, 
-                                        GFP_KERNEL);
-        if (!wqe->page_map_dynamic) {
-            pr_devel(DIS_STATUS_FAIL);
-            return -42;
-        }
-        wqe->sci_msg.iov = wqe->page_map_dynamic;
-    }
-    
-    /*  */
-    sge_page = wqe->sci_msg.iov;
-    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
-        sge = &sge_map[i];
-        mr_page = sge->mr_pages;
-
-        /* Map IO Vectors to each page chunk this segment occupies */
-        while (sge->sge_len > 0) {
-            sge_chunk = min(sge->sge_len, PAGE_SIZE - sge->base_offset);
-            sge_page->iov_base  = mr_page->iov_base + sge->base_offset;
-            sge_page->iov_len   = (size_t)sge_chunk;
-            wqe->byte_len       += sge_chunk;
-
-            sge->base_offset = 0;
-            sge->sge_len -= sge_chunk;
-            sge_page++;
-            mr_page++;
-        }
-    }
-
-    /* Advance the head of the circular buffer */
-    smp_store_release(&wq->wqe_circ.head, (head + 1) & (wq->wqe_max - 1));
-    pr_devel(DIS_STATUS_COMPLETE);
-    return 0;
-}
-#else
-int dis_qp_post_one_rqe(struct dis_wq *rq,
-                        const struct ib_recv_wr *wr)
-{ 
-    int i;
-    u64 *page_map, page_offset, sge_va, sge_len, sge_chunk, head, tail;
-    struct dis_pd *pd = to_dis_pd(rq->ibqp->pd);
-    struct dis_wqe *rqe;
-    struct dis_mr *mr;
-    struct ib_sge *ibsge;
-    struct iovec *iov;
-    pr_devel(DIS_STATUS_START);
-
-    /* Check that circular buffer is not full */
-    head = rq->wqe_circ.head;
-    tail = READ_ONCE(rq->wqe_circ.tail);
-    if(CIRC_SPACE(head, tail, rq->wqe_max) < 1) {
-        pr_devel(DIS_STATUS_FAIL);
-        return -42;
-    }
-    rqe = (struct dis_wqe*)&rq->wqe_circ.buf[head * sizeof(struct dis_wqe)];
-
-    /* Set RQE attributes */
-    rqe->opcode     = IB_WC_RECV;
-    rqe->sci_msq    = &rq->sci_msq;
-    rqe->byte_len   = 0;
-    rqe->ibqp       = rq->ibqp;
-    rqe->wr_id      = wr->wr_id;
-
-    rqe->sci_msg.cmsg_valid = 0;
-    rqe->sci_msg.page       = NULL;
-    rqe->sci_msg.iov        = rqe->iov;
-    rqe->sci_msg.iovlen     = 0;
-
-    /* Map each work request segment */
-    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
-        ibsge   = &wr->sg_list[i];
-        mr      = pd->mr_list[ibsge->lkey];
-
-        /* Retrieve MR for this segment based on l_key */
         if (!mr) {
             pr_devel(DIS_STATUS_FAIL);
             return -42;
@@ -553,48 +333,176 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
 
         /* Memory can be mapped one-to-one for DMA MRs */
         if (mr->is_dma) {
-            iov             = &rqe->iov[rqe->sci_msg.iovlen];
-            iov->iov_base   = (void *)(ibsge->addr);
-            iov->iov_len    = (size_t)ibsge->length;
-            rqe->byte_len   += ibsge->length;
-            rqe->sci_msg.iovlen++;
+            sge->is_dma         = 1;
+            sge_page            = &wqe->page_map_static[i];
+            sge_page->iov_base  = (void *)(ibsge->addr);
+            sge_page->iov_len   = (size_t)ibsge->length;
+            wqe->byte_len       += ibsge->length;
+            wqe->sci_msg.iov    = sge_page;
+            wqe->sci_msg.iovlen++;
             continue;
         }
 
-        sge_va      = (uintptr_t)(ibsge->addr);
-        sge_len  = ibsge->length;
-        page_map     = mr->page_map;
-        page_offset = (sge_va - mr->mr_va) + mr->mr_va_offset;
+        sge->is_dma         = 0;
+        sge->mr_pages       = mr->pages;
+        sge->sge_len        = ibsge->length;
+        sge->base_offset    = (ibsge->addr - mr->mr_va) + mr->mr_va_offset;
+        sge->page_offset    = sge->base_offset / PAGE_SIZE;
+        sge->base_offset    -= sge->page_offset * PAGE_SIZE;
+        sge->mr_pages       += sge->page_offset;
+        sge->page_count     =
+            ((u64)(sge->sge_len + sge->base_offset) / PAGE_SIZE) + 1;
+        wqe->sci_msg.iovlen  += sge->page_count;
+    }
 
-        /* Find offset into the first page this segment occupies */
-        while (page_offset >= PAGE_SIZE) {
-            page_offset -= PAGE_SIZE;
-            page_map++;
+    /* Choose store for the WQE page iovec map */
+    if(wqe->sci_msg.iovlen <= DIS_SGE_PER_WQE) {
+        wqe->sci_msg.iov = wqe->page_map_static;
+    } else {
+        wqe->page_map_dynamic = kmalloc(sizeof(struct iovec)*wqe->sci_msg.iovlen, 
+                                        GFP_KERNEL);
+        if (!wqe->page_map_dynamic) {
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+        wqe->sci_msg.iov = wqe->page_map_dynamic;
+    }
+    
+    /* Fill WQE iovec page map with MR iovecs, and offset pages on SGE bounds */
+    sge_page = wqe->sci_msg.iov;
+    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
+        sge = &sge_map[i];
+        mr_page = sge->mr_pages;
+        
+        if (sge->is_dma) {
+            continue;
         }
 
-        /* Map IO Vectors to each page chunk this segment occupies */
-        while (sge_len > 0 && rqe->sci_msg.iovlen < DIS_PAGE_PER_SGE) {
-            sge_chunk   = min(sge_len, PAGE_SIZE - page_offset);
-            iov         = &rqe->iov[rqe->sci_msg.iovlen];
+        while (sge->sge_len > 0) {
+            sge_chunk = min(sge->sge_len, PAGE_SIZE - sge->base_offset);
+            sge_page->iov_base  = mr_page->iov_base + sge->base_offset;
+            sge_page->iov_len   = (size_t)sge_chunk;
+            wqe->byte_len       += sge_chunk;
 
-            iov->iov_base   = (void *)(*page_map + page_offset);
-            iov->iov_len    = (size_t)sge_chunk;
-            rqe->byte_len   += sge_chunk;
-
-            sge_len -= sge_chunk;
-            page_offset = 0;
-            page_map++;
-            rqe->sci_msg.iovlen++;
+            sge->base_offset = 0;
+            sge->sge_len -= sge_chunk;
+            sge_page++;
+            mr_page++;
         }
     }
 
     /* Advance the head of the circular buffer */
-    smp_store_release(&rq->wqe_circ.head, (head + 1) & (rq->wqe_max - 1));
-    
+    smp_store_release(&wq->wqe_circ.head, (head + 1) & (wq->wqe_max - 1));
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
-#endif
+
+int dis_qp_post_one_rqe(struct dis_wq *wq,
+                    const struct ib_recv_wr *wr)
+{
+    int i;
+    u64 sge_chunk, head, tail;
+    struct dis_pd *pd = to_dis_pd(wq->ibqp->pd);
+    struct dis_wqe *wqe;
+    struct dis_mr *mr;
+    struct dis_sge_map sge_map[DIS_SGE_PER_WQE], *sge;
+    struct ib_sge *ibsge;
+    struct iovec *sge_page, *mr_page;
+    pr_devel(DIS_STATUS_START);
+
+    /* Check that circular buffer is not full */
+    head = wq->wqe_circ.head;
+    tail = READ_ONCE(wq->wqe_circ.tail);
+    if(CIRC_SPACE(head, tail, wq->wqe_max) < 1) {
+        pr_devel(DIS_STATUS_FAIL);
+        return -42;
+    }
+    wqe = (struct dis_wqe*)&wq->wqe_circ.buf[head * sizeof(struct dis_wqe)];
+
+    /* Set SQE attributes */
+    wqe->opcode     = IB_WC_RECV;
+    wqe->sci_msq    = &wq->sci_msq;
+    wqe->byte_len   = 0;
+    wqe->ibqp       = wq->ibqp;
+    wqe->wr_id      = wr->wr_id;
+
+    /* Map each segment(SGE) into physical pages from the MR */
+    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
+        ibsge = &wr->sg_list[i];
+        sge = &sge_map[i];
+
+        /* Retrieve MR for this SGE based on l_key */
+        mr = pd->mr_list[ibsge->lkey];
+        if (!mr) {
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+
+        /* Memory can be mapped one-to-one for DMA MRs */
+        if (mr->is_dma) {
+            sge->is_dma         = 1;
+            sge_page            = &wqe->page_map_static[i];
+            sge_page->iov_base  = (void *)(ibsge->addr);
+            sge_page->iov_len   = (size_t)ibsge->length;
+            wqe->byte_len       += ibsge->length;
+            wqe->sci_msg.iov    = sge_page;
+            wqe->sci_msg.iovlen++;
+            continue;
+        }
+
+        sge->is_dma         = 0;
+        sge->mr_pages       = mr->pages;
+        sge->sge_len        = ibsge->length;
+        sge->base_offset    = (ibsge->addr - mr->mr_va) + mr->mr_va_offset;
+        sge->page_offset    = sge->base_offset / PAGE_SIZE;
+        sge->base_offset    -= sge->page_offset * PAGE_SIZE;
+        sge->mr_pages       += sge->page_offset;
+        sge->page_count     =
+            ((u64)(sge->sge_len + sge->base_offset) / PAGE_SIZE) + 1;
+        wqe->sci_msg.iovlen  += sge->page_count;
+    }
+
+    /* Choose store for the WQE page iovec map */
+    if(wqe->sci_msg.iovlen <= DIS_SGE_PER_WQE) {
+        wqe->sci_msg.iov = wqe->page_map_static;
+    } else {
+        wqe->page_map_dynamic = kmalloc(sizeof(struct iovec)*wqe->sci_msg.iovlen, 
+                                        GFP_KERNEL);
+        if (!wqe->page_map_dynamic) {
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+        wqe->sci_msg.iov = wqe->page_map_dynamic;
+    }
+    
+    /* Fill WQE iovec page map with MR iovecs, and offset pages on SGE bounds */
+    sge_page = wqe->sci_msg.iov;
+    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
+        sge = &sge_map[i];
+        mr_page = sge->mr_pages;
+        
+        if (sge->is_dma) {
+            continue;
+        }
+
+        while (sge->sge_len > 0) {
+            sge_chunk = min(sge->sge_len, PAGE_SIZE - sge->base_offset);
+            sge_page->iov_base  = mr_page->iov_base + sge->base_offset;
+            sge_page->iov_len   = (size_t)sge_chunk;
+            wqe->byte_len       += sge_chunk;
+
+            sge->base_offset = 0;
+            sge->sge_len -= sge_chunk;
+            sge_page++;
+            mr_page++;
+        }
+    }
+
+    /* Advance the head of the circular buffer */
+    smp_store_release(&wq->wqe_circ.head, (head + 1) & (wq->wqe_max - 1));
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
+}
 
 int dis_qp_notify(struct dis_wq *wq)
 {
