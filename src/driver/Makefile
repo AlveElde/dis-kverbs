@@ -19,8 +19,8 @@ EXTRA_CFLAGS += -D_DIS_KERNEL_ 			\
 				-DADAPTER_IS_PX 		\
 				-DINTERFACE_IS_GENIF 	\
 				-DHAVE_WAIT_QUEUE_ENTRY	\
-				# -DDIS_USE_DMA			\
 				# -DDEBUG 				\
+				# -DDIS_USE_DMA			\
 
 EXTRA_CFLAGS += -I$(KVERBS_SRC)/common						\
 				-I$(DIS_SRC)/include						\

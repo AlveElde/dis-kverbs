@@ -33,7 +33,7 @@ int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *dev_attr,
     dev_attr->fw_ver               = 1;
     dev_attr->sys_image_guid       = 1234;
     dev_attr->max_mr_size          = 10000;
-    dev_attr->page_size_cap        = DIS_PAGE_SIZE;
+    dev_attr->page_size_cap        = PAGE_SIZE;
     dev_attr->vendor_id            = 0x1234;
     dev_attr->vendor_part_id       = 0x1234;
     dev_attr->hw_ver               = 1234;
@@ -66,7 +66,7 @@ int dis_query_port(struct ib_device *ibdev, u8 port,
     port_attr->gid_tbl_len      = 1;
     port_attr->pkey_tbl_len     = 1;
     port_attr->max_vl_num       = 1;
-    port_attr->max_msg_sz       = DIS_PAGE_SIZE * DIS_PAGE_PER_WQE;
+    port_attr->max_msg_sz       = PAGE_SIZE * DIS_PAGE_PER_WQE;
     port_attr->max_mtu          = IB_MTU_4096;
     port_attr->active_mtu       = IB_MTU_4096;
     port_attr->lid              = 1234;
@@ -179,7 +179,7 @@ struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd,
                                 int access,
                                 struct ib_udata *udata)
 {
-    u64 *page_pa;
+    struct iovec *page_pa;
     struct dis_mr *mr;
     struct dis_pd *pd = to_dis_pd(ibpd);
     struct sg_page_iter	sg;
@@ -212,20 +212,21 @@ struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd,
     }
 
     /* Allocate memory for a list of physical page addresses */
-    mr->page_pa = kzalloc(sizeof(u64) * mr->page_count, GFP_KERNEL);
+    mr->page_pa = kzalloc(sizeof(struct iovec) * mr->page_count, GFP_KERNEL);
     if (!mr->page_pa) {
         pr_devel(DIS_STATUS_FAIL);
-        goto page_pa_alloc_err;
+        goto page_iov_alloc_err;
     }
 
     /* Store the physical address of the start of each pinned page */
     page_pa = mr->page_pa;
     for_each_sg_page (mr->ibumem->sg_head.sgl, &sg, mr->ibumem->nmap, 0) {
-        *page_pa = (uintptr_t)page_address(sg_page_iter_page(&sg));
-        if (!(*page_pa)) {
+        page_pa->iov_base = (void*)page_address(sg_page_iter_page(&sg));
+        if (!page_pa->iov_base) {
             pr_devel(DIS_STATUS_FAIL);
             goto page_address_err;
         }
+        page_pa->iov_len = PAGE_SIZE;
         page_pa++;
     }
 
@@ -245,7 +246,7 @@ struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd,
 page_address_err:
     kfree(mr->page_pa);
 
-page_pa_alloc_err:
+page_iov_alloc_err:
 page_count_err:
     ib_umem_release(mr->ibumem);
 

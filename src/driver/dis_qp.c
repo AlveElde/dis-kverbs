@@ -77,22 +77,22 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wq *wq, struct dis_wqe *wqe)
     int ret, bytes_left, bytes_total;
     pr_devel(DIS_STATUS_START);
 
-    bytes_left = wqe->byte_len;
     bytes_total = wqe->byte_len;
+    bytes_left = wqe->byte_len;
     while (!kthread_should_stop()) {
         ret = dis_sci_if_receive_v_msg(wqe);
         if (!ret) {
-            // Note: wqe->byte_len is only changed on a successful, but partial, receive
             bytes_left -= wqe->byte_len;
+            // Note: wqe->byte_len is only changed on a successful, but partial, receive
             if(bytes_left == 0) {
                 pr_devel(DIS_STATUS_COMPLETE);
                 wqe->byte_len = bytes_total;
                 dis_wq_post_rqe_cqe(wq, wqe, IB_WC_SUCCESS);
                 return IB_WC_SUCCESS;
             }
-            wqe->byte_len = bytes_left;
             pr_devel("Partial receive!");
         }
+        wqe->byte_len = bytes_total;
     }
 
     dis_wq_post_rqe_cqe(wq, wqe, IB_WC_RESP_TIMEOUT_ERR);
@@ -153,6 +153,9 @@ int dis_wq_consume_all(struct dis_wq *wq)
         }
 
         // dis_wq_post_cqe(wq, wqe, wc_status);
+        if (wqe->page_pa_dynamic) {
+            kfree(wqe->page_pa_dynamic);
+        }
 
         /* Advance the tail of the circular buffer */
         smp_store_release(&wq->wqe_circ.tail, (tail + 1) & (wq->wqe_max - 1));
@@ -261,6 +264,11 @@ int dis_wq_thread(void *wq_buf)
 int dis_qp_init(struct dis_wq *wq)
 {
     pr_devel(DIS_STATUS_START);
+
+    if(wq->wq_state == DIS_WQ_EXITED) {
+        pr_devel(DIS_STATUS_FAIL);
+        return -42;
+    }
     
     /* Initialize wait queue */
     init_waitqueue_head(&wq->wait_queue);
@@ -282,42 +290,42 @@ int dis_qp_init(struct dis_wq *wq)
     return 0;
 }
 
-
-int dis_qp_post_one_sqe(struct dis_wq *sq,
-                        const struct ib_send_wr *send_wr)
+int dis_qp_post_one_sqe(struct dis_wq *wq,
+                        const struct ib_send_wr *wr)
 {
     int i;
-    u64 *page_pa, page_offset, sge_va, sge_length, sge_chunk, head, tail;
-    struct dis_pd *pd = to_dis_pd(sq->ibqp->pd);
-    struct dis_wqe *sqe;
+    u64 sge_len, sge_chunk, head, tail;
+    u32 sge_page_total, pa_count;
+    struct dis_pd *pd = to_dis_pd(wq->ibqp->pd);
+    struct dis_wqe *wqe;
     struct dis_mr *mr;
     struct ib_sge *ibsge;
-    struct iovec *iov;
+    struct dis_sge sge[DIS_SGE_PER_WQE];
+    struct iovec *page_pa;
     pr_devel(DIS_STATUS_START);
 
     /* Check that circular buffer is not full */
-    head = sq->wqe_circ.head;
-    tail = READ_ONCE(sq->wqe_circ.tail);
-    if(CIRC_SPACE(head, tail, sq->wqe_max) < 1) {
+    head = wq->wqe_circ.head;
+    tail = READ_ONCE(wq->wqe_circ.tail);
+    if(CIRC_SPACE(head, tail, wq->wqe_max) < 1) {
         pr_devel(DIS_STATUS_FAIL);
         return -42;
     }
-    sqe = (struct dis_wqe*)&sq->wqe_circ.buf[head * sizeof(struct dis_wqe)];
+    wqe = (struct dis_wqe*)&wq->wqe_circ.buf[head * sizeof(struct dis_wqe)];
 
     /* Set SQE attributes */
-    sqe->opcode     = IB_WC_SEND;
-    sqe->sci_msq    = &sq->sci_msq;
-    sqe->byte_len   = 0;
-    sqe->ibqp       = sq->ibqp;
-    sqe->wr_id      = send_wr->wr_id;
+    wqe->opcode     = IB_WC_SEND;
+    wqe->sci_msq    = &wq->sci_msq;
+    wqe->byte_len   = 0;
+    wqe->ibqp       = wq->ibqp;
+    wqe->wr_id      = wr->wr_id;
     
-    sqe->sci_msg.cmsg_valid = 0;
-    sqe->sci_msg.iov        = sqe->iov;
-    sqe->sci_msg.iovlen     = 0;
+    wqe->sci_msg.cmsg_valid = 0;
+    sge_page_total = 0;
 
     /* Map each work request segment */
-    for (i = 0; i < min(send_wr->num_sge, DIS_SGE_PER_WQE); i++) {
-        ibsge = &send_wr->sg_list[i];
+    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
+        ibsge = &wr->sg_list[i];
 
         /* Retrieve MR for this segment based on l_key */
         mr = pd->mr_list[ibsge->lkey];
@@ -327,54 +335,185 @@ int dis_qp_post_one_sqe(struct dis_wq *sq,
         }
 
         /* Memory can be mapped one-to-one for DMA MRs */
-        if (mr->is_dma) {
-            iov             = &sqe->iov[sqe->sci_msg.iovlen];
-            iov->iov_base   = (void *)(ibsge->addr);
-            iov->iov_len    = (size_t)ibsge->length;
-            sqe->byte_len   += ibsge->length;
-            sqe->sci_msg.iovlen++;
-            continue;
-        }
+        // if (mr->is_dma) {
+        //     iov             = &sqe->page_pa_single[i];
+        //     iov->iov_base   = (void *)(ibsge->addr);
+        //     iov->iov_len    = (size_t)ibsge->length;
+        //     sqe->byte_len   += ibsge->length;
+        //     sqe->sci_msg.iovlen++;
+        //     sqe->sci_msg.iov = sqe->page_pa_single;
+        //     continue;
+        // }
 
-        sge_va      = (uintptr_t)(ibsge->addr);
-        sge_length  = ibsge->length;
-        page_pa     = mr->page_pa;
-        page_offset = (sge_va - mr->mr_va) + mr->mr_va_offset;
+        sge[i].page_pa      = mr->page_pa;
+        sge[i].base_offset  = (ibsge->addr - mr->mr_va) + mr->mr_va_offset;
+        sge[i].page_offset  = sge[i].base_offset / PAGE_SIZE;
+        sge[i].base_offset  -= sge[i].page_offset * PAGE_SIZE;
+        sge[i].page_pa      += sge[i].page_offset;
+        sge[i].page_count   = ((u64)(ibsge->length + sge[i].base_offset) / PAGE_SIZE) + 1;
+        sge_page_total      += sge[i].page_count;
+    }
 
-        /* Find offset into the first page this segment occupies */
-        while (page_offset >= DIS_PAGE_SIZE) {
-            page_offset -= DIS_PAGE_SIZE;
-            page_pa++;
+    wqe->sci_msg.iovlen = sge_page_total;
+
+    /* */
+    if(sge_page_total <= DIS_FAST_PAGES) {
+        wqe->sci_msg.iov = wqe->page_pa_static;
+    } else {
+        wqe->page_pa_dynamic = kmalloc(sizeof(struct iovec) * sge_page_total, GFP_KERNEL);
+        if (!wqe->page_pa_dynamic) {
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
         }
+        
+        wqe->sci_msg.iov = wqe->page_pa_dynamic;
+    }
+    
+    /**/
+    pa_count = 0;
+    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
+        ibsge = &wr->sg_list[i];
+        sge_len = ibsge->length;
+        page_pa = &wqe->sci_msg.iov[pa_count];
+
+        /**/
+        memcpy(page_pa, sge[i].page_pa, sizeof(struct iovec) * sge[i].page_count);
+        pa_count += sge[i].page_count;
 
         /* Map IO Vectors to each page chunk this segment occupies */
-        while (sge_length > 0 && sqe->sci_msg.iovlen < DIS_PAGE_PER_SGE) {
-            sge_chunk   = min(sge_length, DIS_PAGE_SIZE - page_offset);
-            iov         = &sqe->iov[sqe->sci_msg.iovlen];
+        while (sge_len > 0) {
+            sge_chunk = min(sge_len, PAGE_SIZE - sge[i].base_offset);
+            page_pa->iov_base   += sge[i].base_offset;
+            page_pa->iov_len    = (size_t)sge_chunk;
+            wqe->byte_len       += sge_chunk;
 
-            iov->iov_base   = (void *)(*page_pa + page_offset);
-            iov->iov_len    = (size_t)sge_chunk;
-            sqe->byte_len   += sge_chunk;
-
-            sge_length -= sge_chunk;
-            page_offset = 0;
+            sge[i].base_offset = 0;
+            sge_len -= sge_chunk;
             page_pa++;
-            sqe->sci_msg.iovlen++;
         }
     }
 
     /* Advance the head of the circular buffer */
-    smp_store_release(&sq->wqe_circ.head, (head + 1) & (sq->wqe_max - 1));
-    
+    smp_store_release(&wq->wqe_circ.head, (head + 1) & (wq->wqe_max - 1));
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
 
+#if 1
+int dis_qp_post_one_rqe(struct dis_wq *wq,
+                    const struct ib_recv_wr *wr)
+{
+    int i;
+    u64 sge_len, sge_chunk, head, tail;
+    u32 sge_page_total, pa_count;
+    struct dis_pd *pd = to_dis_pd(wq->ibqp->pd);
+    struct dis_wqe *wqe;
+    struct dis_mr *mr;
+    struct ib_sge *ibsge;
+    struct dis_sge sge[DIS_SGE_PER_WQE];
+    struct iovec *page_pa;
+    pr_devel(DIS_STATUS_START);
+
+    /* Check that circular buffer is not full */
+    head = wq->wqe_circ.head;
+    tail = READ_ONCE(wq->wqe_circ.tail);
+    if(CIRC_SPACE(head, tail, wq->wqe_max) < 1) {
+        pr_devel(DIS_STATUS_FAIL);
+        return -42;
+    }
+    wqe = (struct dis_wqe*)&wq->wqe_circ.buf[head * sizeof(struct dis_wqe)];
+
+    /* Set SQE attributes */
+    wqe->opcode     = IB_WC_RECV;
+    wqe->sci_msq    = &wq->sci_msq;
+    wqe->byte_len   = 0;
+    wqe->ibqp       = wq->ibqp;
+    wqe->wr_id      = wr->wr_id;
+    
+    wqe->sci_msg.cmsg_valid = 0;
+    sge_page_total = 0;
+
+    /* Map each work request segment */
+    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
+        ibsge = &wr->sg_list[i];
+
+        /* Retrieve MR for this segment based on l_key */
+        mr = pd->mr_list[ibsge->lkey];
+        if (!mr) {
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+
+        /* Memory can be mapped one-to-one for DMA MRs */
+        // if (mr->is_dma) {
+        //     iov             = &sqe->page_pa_single[i];
+        //     iov->iov_base   = (void *)(ibsge->addr);
+        //     iov->iov_len    = (size_t)ibsge->length;
+        //     sqe->byte_len   += ibsge->length;
+        //     sqe->sci_msg.iovlen++;
+        //     sqe->sci_msg.iov = sqe->page_pa_single;
+        //     continue;
+        // }
+
+        sge[i].page_pa      = mr->page_pa;
+        sge[i].base_offset  = (ibsge->addr - mr->mr_va) + mr->mr_va_offset;
+        sge[i].page_offset  = sge[i].base_offset / PAGE_SIZE;
+        sge[i].base_offset  -= sge[i].page_offset * PAGE_SIZE;
+        sge[i].page_pa      += sge[i].page_offset;
+        sge[i].page_count   = ((u64)(ibsge->length + sge[i].base_offset) / PAGE_SIZE) + 1;
+        sge_page_total      += sge[i].page_count;
+    }
+
+    wqe->sci_msg.iovlen = sge_page_total;
+
+    /* */
+    if(sge_page_total <= DIS_FAST_PAGES) {
+        wqe->sci_msg.iov = wqe->page_pa_static;
+    } else {
+        wqe->page_pa_dynamic = kmalloc(sizeof(struct iovec) * sge_page_total, GFP_KERNEL);
+        if (!wqe->page_pa_dynamic) {
+            pr_devel(DIS_STATUS_FAIL);
+            return -42;
+        }
+        
+        wqe->sci_msg.iov = wqe->page_pa_dynamic;
+    }
+    
+    /**/
+    pa_count = 0;
+    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
+        ibsge = &wr->sg_list[i];
+        sge_len = ibsge->length;
+        page_pa = &wqe->sci_msg.iov[pa_count];
+
+        /**/
+        memcpy(page_pa, sge[i].page_pa, sizeof(struct iovec) * sge[i].page_count);
+        pa_count += sge[i].page_count;
+
+        /* Map IO Vectors to each page chunk this segment occupies */
+        while (sge_len > 0) {
+            sge_chunk = min(sge_len, PAGE_SIZE - sge[i].base_offset);
+            page_pa->iov_base   += sge[i].base_offset;
+            page_pa->iov_len    = (size_t)sge_chunk;
+            wqe->byte_len       += sge_chunk;
+
+            sge[i].base_offset = 0;
+            sge_len -= sge_chunk;
+            page_pa++;
+        }
+    }
+
+    /* Advance the head of the circular buffer */
+    smp_store_release(&wq->wqe_circ.head, (head + 1) & (wq->wqe_max - 1));
+    pr_devel(DIS_STATUS_COMPLETE);
+    return 0;
+}
+#else
 int dis_qp_post_one_rqe(struct dis_wq *rq,
-                        const struct ib_recv_wr *recv_wr)
+                        const struct ib_recv_wr *wr)
 { 
     int i;
-    u64 *page_pa, page_offset, sge_va, sge_length, sge_chunk, head, tail;
+    u64 *page_pa, page_offset, sge_va, sge_len, sge_chunk, head, tail;
     struct dis_pd *pd = to_dis_pd(rq->ibqp->pd);
     struct dis_wqe *rqe;
     struct dis_mr *mr;
@@ -396,7 +535,7 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
     rqe->sci_msq    = &rq->sci_msq;
     rqe->byte_len   = 0;
     rqe->ibqp       = rq->ibqp;
-    rqe->wr_id      = recv_wr->wr_id;
+    rqe->wr_id      = wr->wr_id;
 
     rqe->sci_msg.cmsg_valid = 0;
     rqe->sci_msg.page       = NULL;
@@ -404,8 +543,8 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
     rqe->sci_msg.iovlen     = 0;
 
     /* Map each work request segment */
-    for (i = 0; i < min(recv_wr->num_sge, DIS_SGE_PER_WQE); i++) {
-        ibsge   = &recv_wr->sg_list[i];
+    for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
+        ibsge   = &wr->sg_list[i];
         mr      = pd->mr_list[ibsge->lkey];
 
         /* Retrieve MR for this segment based on l_key */
@@ -425,26 +564,26 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
         }
 
         sge_va      = (uintptr_t)(ibsge->addr);
-        sge_length  = ibsge->length;
+        sge_len  = ibsge->length;
         page_pa     = mr->page_pa;
         page_offset = (sge_va - mr->mr_va) + mr->mr_va_offset;
 
         /* Find offset into the first page this segment occupies */
-        while (page_offset >= DIS_PAGE_SIZE) {
-            page_offset -= DIS_PAGE_SIZE;
+        while (page_offset >= PAGE_SIZE) {
+            page_offset -= PAGE_SIZE;
             page_pa++;
         }
 
         /* Map IO Vectors to each page chunk this segment occupies */
-        while (sge_length > 0 && rqe->sci_msg.iovlen < DIS_PAGE_PER_SGE) {
-            sge_chunk   = min(sge_length, DIS_PAGE_SIZE - page_offset);
+        while (sge_len > 0 && rqe->sci_msg.iovlen < DIS_PAGE_PER_SGE) {
+            sge_chunk   = min(sge_len, PAGE_SIZE - page_offset);
             iov         = &rqe->iov[rqe->sci_msg.iovlen];
 
             iov->iov_base   = (void *)(*page_pa + page_offset);
             iov->iov_len    = (size_t)sge_chunk;
             rqe->byte_len   += sge_chunk;
 
-            sge_length -= sge_chunk;
+            sge_len -= sge_chunk;
             page_offset = 0;
             page_pa++;
             rqe->sci_msg.iovlen++;
@@ -457,6 +596,7 @@ int dis_qp_post_one_rqe(struct dis_wq *rq,
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
+#endif
 
 int dis_qp_notify(struct dis_wq *wq)
 {

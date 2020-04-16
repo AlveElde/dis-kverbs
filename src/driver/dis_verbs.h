@@ -19,10 +19,10 @@
 #define DIS_MSG_MAX         20
 #define DIS_MSG_SIZE_MAX    1000000
 
-#define DIS_PAGE_SIZE       PAGE_SIZE
 #define DIS_SGE_PER_WQE     4
-#define DIS_PAGE_PER_SGE    10
+#define DIS_PAGE_PER_SGE    100
 #define DIS_PAGE_PER_WQE    DIS_SGE_PER_WQE * DIS_PAGE_PER_SGE
+#define DIS_FAST_PAGES      4
 
 enum dis_wq_flag {
     DIS_WQ_EMPTY,
@@ -50,7 +50,7 @@ struct dis_dev {
 struct dis_mr {
     struct ib_mr    ibmr;
     struct ib_umem  *ibumem;
-    u64             *page_pa;
+    struct iovec    *page_pa;
     u64             mr_va;
     u64             mr_va_offset;
     u64             mr_length; // Size
@@ -78,9 +78,17 @@ struct dis_cq {
     u32             cqe_max;
 };
 
+struct dis_sge {
+    struct iovec *page_pa; // Pointer to first page in mr
+    u64 base_offset;
+    u64 page_offset;
+    u32 page_count;
+};
+
 struct dis_wqe {
     struct ib_qp    *ibqp;
-    struct iovec    iov[DIS_PAGE_PER_WQE];
+    struct iovec    *page_pa_dynamic;
+    struct iovec    page_pa_static[DIS_FAST_PAGES];
     sci_msq_queue_t *sci_msq;
     sci_msg_t       sci_msg;
     u32             wr_id;

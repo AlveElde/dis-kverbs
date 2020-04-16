@@ -196,7 +196,8 @@ int dis_sci_if_send_v_msg(struct dis_wqe *wqe)
                         &wqe->sci_msg,
                         wqe->byte_len,
                         &free,
-                        SCIL_FLAG_MSG_FLUSH | 
+                        SCIL_FLAG_MSG_FLUSH |
+                        // SCIL_FLAG_FULL_ERROR_CHECK |
                         SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
                         );
 #endif
@@ -231,6 +232,7 @@ int dis_sci_if_receive_v_msg(struct dis_wqe *wqe)
                         &wqe->sci_msg,
                         &wqe->byte_len,
                         &free,
+                        // SCIL_FLAG_FULL_ERROR_CHECK |
                         SCIL_FLAG_SEND_RECEIVE_PAIRS_ONLY
                         // SCIL_FLAG_DGRAM
                         );

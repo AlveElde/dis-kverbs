@@ -28,7 +28,7 @@ rm-srp:
 	sudo rmmod ib_srp
 	sudo rmmod ib_srpt
 
-req: dmesg-c
+req: dmesg-c all
 	sudo insmod $(SCI_SRC)/dis_msq.ko
 	sudo insmod $(DRV_SRC)/dis_sci_if_mod.ko $(SCI_IF_REQ_PARAMS)
 	sudo insmod $(BUS_SRC)/dis_bus_mod.ko
@@ -36,7 +36,7 @@ req: dmesg-c
 	sudo insmod $(DEV_SRC)/dis_device_mod.ko
 	dmesg -t
 
-res: dmesg-c
+res: dmesg-c all
 	sudo insmod $(SCI_SRC)/dis_msq.ko
 	sudo insmod $(DRV_SRC)/dis_sci_if_mod.ko $(SCI_IF_RES_PARAMS)
 	sudo insmod $(BUS_SRC)/dis_bus_mod.ko

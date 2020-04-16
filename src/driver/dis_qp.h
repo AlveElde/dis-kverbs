@@ -9,9 +9,9 @@
 
 int dis_qp_init(struct dis_wq *wq);
 int dis_qp_post_one_sqe(struct dis_wq *wq,
-                        const struct ib_send_wr *send_wr);
+                        const struct ib_send_wr *wr);
 int dis_qp_post_one_rqe(struct dis_wq *wq,
-                        const struct ib_recv_wr *recv_wr);
+                        const struct ib_recv_wr *wr);
 int dis_qp_notify(struct dis_wq *wq);
 void dis_qp_exit(struct dis_wq *wq);
 
