@@ -179,7 +179,7 @@ struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd,
                                 int access,
                                 struct ib_udata *udata)
 {
-    struct iovec *page_pa;
+    struct iovec *page;
     struct dis_mr *mr;
     struct dis_pd *pd = to_dis_pd(ibpd);
     struct sg_page_iter	sg;
@@ -212,22 +212,22 @@ struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd,
     }
 
     /* Allocate memory for a list of physical page addresses */
-    mr->page_pa = kzalloc(sizeof(struct iovec) * mr->page_count, GFP_KERNEL);
-    if (!mr->page_pa) {
+    mr->pages = kzalloc(sizeof(struct iovec) * mr->page_count, GFP_KERNEL);
+    if (!mr->pages) {
         pr_devel(DIS_STATUS_FAIL);
         goto page_iov_alloc_err;
     }
 
     /* Store the physical address of the start of each pinned page */
-    page_pa = mr->page_pa;
+    page = mr->pages;
     for_each_sg_page (mr->ibumem->sg_head.sgl, &sg, mr->ibumem->nmap, 0) {
-        page_pa->iov_base = (void*)page_address(sg_page_iter_page(&sg));
-        if (!page_pa->iov_base) {
+        page->iov_base = (void*)page_address(sg_page_iter_page(&sg));
+        if (!page->iov_base) {
             pr_devel(DIS_STATUS_FAIL);
             goto page_address_err;
         }
-        page_pa->iov_len = PAGE_SIZE;
-        page_pa++;
+        page->iov_len = PAGE_SIZE;
+        page++;
     }
 
     /* Store the virtual address start, length, and offset */
@@ -244,7 +244,7 @@ struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd,
     return &mr->ibmr;
 
 page_address_err:
-    kfree(mr->page_pa);
+    kfree(mr->pages);
 
 page_iov_alloc_err:
 page_count_err:
@@ -264,7 +264,7 @@ int dis_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
     pr_devel(DIS_STATUS_START);
     
     if (!mr->is_dma) {
-        kfree(mr->page_pa);
+        kfree(mr->pages);
         ib_umem_release(mr->ibumem);
     }
     kfree(mr);

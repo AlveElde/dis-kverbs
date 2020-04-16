@@ -50,7 +50,7 @@ struct dis_dev {
 struct dis_mr {
     struct ib_mr    ibmr;
     struct ib_umem  *ibumem;
-    struct iovec    *page_pa;
+    struct iovec    *pages;
     u64             mr_va;
     u64             mr_va_offset;
     u64             mr_length; // Size
@@ -78,17 +78,18 @@ struct dis_cq {
     u32             cqe_max;
 };
 
-struct dis_sge {
-    struct iovec *page_pa; // Pointer to first page in mr
+struct dis_sge_map {
+    struct iovec *mr_pages;
     u64 base_offset;
     u64 page_offset;
     u32 page_count;
+    u64 sge_len;
 };
 
 struct dis_wqe {
     struct ib_qp    *ibqp;
-    struct iovec    *page_pa_dynamic;
-    struct iovec    page_pa_static[DIS_FAST_PAGES];
+    struct iovec    *page_map_dynamic;
+    struct iovec    page_map_static[DIS_FAST_PAGES];
     sci_msq_queue_t *sci_msq;
     sci_msg_t       sci_msg;
     u32             wr_id;
