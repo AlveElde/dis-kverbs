@@ -22,6 +22,7 @@
 #define DIS_SGE_PER_WQE     4
 #define DIS_PAGE_PER_SGE    100
 #define DIS_PAGE_PER_WQE    DIS_SGE_PER_WQE * DIS_PAGE_PER_SGE
+#define DIS_MAX_IOVLEN      1024
 
 enum dis_wq_flag {
     DIS_WQ_EMPTY,

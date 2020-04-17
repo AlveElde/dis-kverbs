@@ -92,7 +92,7 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wq *wq, struct dis_wqe *wqe)
             }
             pr_devel("Partial receive!");
         }
-        wqe->byte_len = bytes_total;
+        wqe->byte_len = bytes_total; //TODO: Change this to bytes_left?
     }
 
     dis_wq_post_rqe_cqe(wq, wqe, IB_WC_RESP_TIMEOUT_ERR);
@@ -114,8 +114,7 @@ enum ib_wc_status dis_wq_consume_one_sqe(struct dis_wq *wq, struct dis_wqe *wqe)
             return IB_WC_SUCCESS;
         }
     }
-
-   
+    
     dis_wq_post_sqe_cqe(wq, wqe, IB_WC_RESP_TIMEOUT_ERR);
     pr_devel(DIS_STATUS_FAIL);
     return IB_WC_RESP_TIMEOUT_ERR;
@@ -313,11 +312,12 @@ int dis_qp_post_one_sqe(struct dis_wq *wq,
     wqe = (struct dis_wqe*)&wq->wqe_circ.buf[head * sizeof(struct dis_wqe)];
 
     /* Set SQE attributes */
-    wqe->opcode     = IB_WC_SEND;
-    wqe->sci_msq    = &wq->sci_msq;
-    wqe->byte_len   = 0;
-    wqe->ibqp       = wq->ibqp;
-    wqe->wr_id      = wr->wr_id;
+    wqe->opcode         = IB_WC_SEND;
+    wqe->sci_msq        = &wq->sci_msq;
+    wqe->byte_len       = 0;
+    wqe->ibqp           = wq->ibqp;
+    wqe->wr_id          = wr->wr_id;
+    wqe->sci_msg.iovlen = 0;
 
     /* Map each segment(SGE) into physical pages from the MR */
     for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
@@ -356,7 +356,10 @@ int dis_qp_post_one_sqe(struct dis_wq *wq,
     }
 
     /* Choose store for the WQE page iovec map */
-    if(wqe->sci_msg.iovlen <= DIS_SGE_PER_WQE) {
+    if (wqe->sci_msg.iovlen > DIS_MAX_IOVLEN) {
+        pr_devel(DIS_STATUS_FAIL);
+        return -42;
+    } else if(wqe->sci_msg.iovlen <= DIS_SGE_PER_WQE) {
         wqe->sci_msg.iov = wqe->page_map_static;
     } else {
         wqe->page_map_dynamic = kmalloc(sizeof(struct iovec)*wqe->sci_msg.iovlen, 
@@ -383,9 +386,8 @@ int dis_qp_post_one_sqe(struct dis_wq *wq,
             sge_page->iov_base  = mr_page->iov_base + sge->base_offset;
             sge_page->iov_len   = (size_t)sge_chunk;
             wqe->byte_len       += sge_chunk;
-
-            sge->base_offset = 0;
-            sge->sge_len -= sge_chunk;
+            sge->sge_len        -= sge_chunk;
+            sge->base_offset    = 0;
             sge_page++;
             mr_page++;
         }
@@ -420,11 +422,12 @@ int dis_qp_post_one_rqe(struct dis_wq *wq,
     wqe = (struct dis_wqe*)&wq->wqe_circ.buf[head * sizeof(struct dis_wqe)];
 
     /* Set SQE attributes */
-    wqe->opcode     = IB_WC_RECV;
-    wqe->sci_msq    = &wq->sci_msq;
-    wqe->byte_len   = 0;
-    wqe->ibqp       = wq->ibqp;
-    wqe->wr_id      = wr->wr_id;
+    wqe->opcode         = IB_WC_RECV;
+    wqe->sci_msq        = &wq->sci_msq;
+    wqe->byte_len       = 0;
+    wqe->ibqp           = wq->ibqp;
+    wqe->wr_id          = wr->wr_id;
+    wqe->sci_msg.iovlen = 0;
 
     /* Map each segment(SGE) into physical pages from the MR */
     for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
@@ -463,7 +466,10 @@ int dis_qp_post_one_rqe(struct dis_wq *wq,
     }
 
     /* Choose store for the WQE page iovec map */
-    if(wqe->sci_msg.iovlen <= DIS_SGE_PER_WQE) {
+    if (wqe->sci_msg.iovlen > DIS_MAX_IOVLEN) {
+        pr_devel(DIS_STATUS_FAIL);
+        return -42;
+    } else if(wqe->sci_msg.iovlen <= DIS_SGE_PER_WQE) {
         wqe->sci_msg.iov = wqe->page_map_static;
     } else {
         wqe->page_map_dynamic = kmalloc(sizeof(struct iovec)*wqe->sci_msg.iovlen, 
@@ -490,9 +496,8 @@ int dis_qp_post_one_rqe(struct dis_wq *wq,
             sge_page->iov_base  = mr_page->iov_base + sge->base_offset;
             sge_page->iov_len   = (size_t)sge_chunk;
             wqe->byte_len       += sge_chunk;
-
-            sge->base_offset = 0;
-            sge->sge_len -= sge_chunk;
+            sge->sge_len        -= sge_chunk;
+            sge->base_offset    = 0;
             sge_page++;
             mr_page++;
         }
