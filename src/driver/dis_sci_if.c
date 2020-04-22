@@ -47,7 +47,7 @@ int dis_sci_if_create_msq(struct dis_wq *wq)
 
     // pr_devel("Targeting remote_node_id %d", remote_node_id);
     // pr_devel("Creating MSQ with l_msq_id: %d, r_msq_id: %d, wqe_max: %d, mtu: %d", 
-                // l_msq_id, r_msq_id, wq->wqe_max, wq->mtu);
+    //             l_msq_id, r_msq_id, DIS_MSG_MAX, DIS_MSG_SIZE_MAX);
 
 #ifdef DIS_USE_DMA
     remote_node_ids[0] = remote_node_id;
@@ -119,7 +119,7 @@ int dis_sci_if_connect_msq(struct dis_wq *wq)
 
     // pr_devel("Targeting remote_node_id %d", remote_node_id);
     // pr_devel("Connecting MSQ with l_msq_id: %d, r_msq_id: %d, wqe_max: %d, mtu: %d", 
-                // l_msq_id, r_msq_id, wq->wqe_max, wq->mtu);
+    //             l_msq_id, r_msq_id, DIS_MSG_MAX, DIS_MSG_SIZE_MAX);
 
 #ifdef DIS_USE_DMA
     remote_node_ids[0] = remote_node_id;

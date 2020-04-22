@@ -16,13 +16,13 @@
 #define DIS_MR_INI          0
 #define DIS_MR_MAX          100
 
-#define DIS_MSG_MAX         20
-#define DIS_MSG_SIZE_MAX    1000000
-
 #define DIS_SGE_PER_WQE     4
-#define DIS_PAGE_PER_SGE    100
-#define DIS_PAGE_PER_WQE    DIS_SGE_PER_WQE * DIS_PAGE_PER_SGE
+// #define DIS_PAGE_PER_SGE    100
+// #define DIS_PAGE_PER_WQE    DIS_SGE_PER_WQE * DIS_PAGE_PER_SGE
 #define DIS_MAX_IOVLEN      1024
+
+#define DIS_MSG_MAX         20
+#define DIS_MSG_SIZE_MAX    DIS_MAX_IOVLEN * PAGE_SIZE
 
 enum dis_wq_flag {
     DIS_WQ_EMPTY,

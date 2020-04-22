@@ -1,10 +1,11 @@
 obj-m += src/
 
+INSTALL_DIR		:= $(HOME)
 SRC 			:= ./src
 BUS_SRC 		:= $(SRC)/bus
 DRV_SRC 		:= $(SRC)/driver
 DEV_SRC 		:= $(SRC)/device
-SCI_SRC			:= /home/alve/scilib/GENIF/LINUX
+SCI_SRC			:= $(INSTALL_DIR)/DIS/src/SCI_SOCKET/scilib/GENIF/LINUX
 KERNEL_BUILD 	:= /lib/modules/$(shell uname -r)/build
 
 SCI_SYMBOLS 			:= $(SCI_SRC)/Module.symvers

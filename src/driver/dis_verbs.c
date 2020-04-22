@@ -32,13 +32,13 @@ int dis_query_device(struct ib_device *ibdev, struct ib_device_attr *dev_attr,
 
     dev_attr->fw_ver               = 1;
     dev_attr->sys_image_guid       = 1234;
-    dev_attr->max_mr_size          = 10000;
+    dev_attr->max_mr_size          = DIS_MSG_SIZE_MAX;
     dev_attr->page_size_cap        = PAGE_SIZE;
     dev_attr->vendor_id            = 0x1234;
     dev_attr->vendor_part_id       = 0x1234;
     dev_attr->hw_ver               = 1234;
     dev_attr->max_qp               = 1234;
-    dev_attr->max_qp_wr            = 1234;
+    dev_attr->max_qp_wr            = DIS_MSG_MAX;
     dev_attr->device_cap_flags     = IB_DEVICE_ALLOW_USER_UNREG;
     dev_attr->device_cap_flags     |= IB_DEVICE_MEM_MGT_EXTENSIONS;
     dev_attr->max_send_sge         = DIS_SGE_PER_WQE;
@@ -66,7 +66,7 @@ int dis_query_port(struct ib_device *ibdev, u8 port,
     port_attr->gid_tbl_len      = 1;
     port_attr->pkey_tbl_len     = 1;
     port_attr->max_vl_num       = 1;
-    port_attr->max_msg_sz       = PAGE_SIZE * DIS_PAGE_PER_WQE;
+    port_attr->max_msg_sz       = DIS_MSG_SIZE_MAX;
     port_attr->max_mtu          = IB_MTU_4096;
     port_attr->active_mtu       = IB_MTU_4096;
     port_attr->lid              = 1234;
@@ -495,16 +495,17 @@ int dis_modify_qp(struct ib_qp *ibqp,
                 pr_devel(DIS_STATUS_FAIL);
                 return -42;
             }
-            break;
 
-        case IB_QPS_RTS:
-            /* Transition QP state to RTS */
-            pr_devel("Modify QP state: RTS");
             ret = dis_qp_init(&qp->sq);
             if(ret) {
                 pr_devel(DIS_STATUS_FAIL);
                 return -42;
             }
+            break;
+            
+        case IB_QPS_RTS:
+            /* Transition QP state to RTS */
+            pr_devel("Modify QP state: RTS");
             break;
 
         default:

@@ -4,11 +4,12 @@ dis_driver_mod-objs := dis_driver.o dis_verbs.o dis_qp.o
 obj-m += dis_sci_if_mod.o
 dis_sci_if_mod-objs := dis_sci_if.o
 
+INSTALL_DIR		:= $(HOME)
 KVERBS_SRC 		:= $(obj)/..
-DIS_SRC			:= /opt/DIS
-SCI_SRC			:= /home/alve/scilib
-KERNEL_SRC		:= /home/alve/kernel
-OLD_DIS_SRC		:= /home/alve/royn-lts/DIS/src
+OPT_DIS_SRC		:= /opt/DIS
+DIS_SRC			:= $(INSTALL_DIR)/DIS/src
+SCILIB_SRC		:= $(DIS_SRC)/SCI_SOCKET/scilib
+OSIF			:= $(DIS_SRC)/COMMON/osif/kernel
 
 EXTRA_CFLAGS += -D_DIS_KERNEL_ 			\
 				-DOS_IS_LINUX 			\
@@ -23,22 +24,22 @@ EXTRA_CFLAGS += -D_DIS_KERNEL_ 			\
 				# -DDEBUG 				\
 
 EXTRA_CFLAGS += -I$(KVERBS_SRC)/common						\
-				-I$(DIS_SRC)/include						\
-				-I$(DIS_SRC)/include/dis					\
-				-I$(DIS_SRC)/include/os						\
-				-I$(SCI_SRC)/.								\
-				-I$(SCI_SRC)/GENIF							\
-				-I$(SCI_SRC)/GENIF/LINUX					\
-				-I$(SCI_SRC)/GENIF/LINUX/os					\
-				-I$(SCI_SRC)/SISCI							\
-				-I$(KERNEL_SRC)/.               			\
-				-I$(KERNEL_SRC)/include       				\
-				-I$(KERNEL_SRC)/include/LINUX 				\
-				-I$(OLD_DIS_SRC)/IRM_GX/drv/src             \
-				-I$(OLD_DIS_SRC)/IRM_GX/drv/include         \
-				-I$(OLD_DIS_SRC)/IRM_GX/drv/src/LINUX       \
-				-I$(OLD_DIS_SRC)/IRM_GX/drv/src/LINUX/os	\
-				-I$(OLD_DIS_SRC)/include                   	\
-				-I$(OLD_DIS_SRC)/include/dis              	\
+				-I$(OPT_DIS_SRC)/include						\
+				-I$(OPT_DIS_SRC)/include/dis					\
+				-I$(OPT_DIS_SRC)/include/os						\
+				-I$(SCILIB_SRC)/.								\
+				-I$(SCILIB_SRC)/GENIF							\
+				-I$(SCILIB_SRC)/GENIF/LINUX					\
+				-I$(SCILIB_SRC)/GENIF/LINUX/os					\
+				-I$(SCILIB_SRC)/SISCI							\
+				-I$(OSIF)/.               			\
+				-I$(OSIF)/include       				\
+				-I$(OSIF)/include/LINUX 				\
+				-I$(DIS_SRC)/IRM_GX/drv/src             \
+				-I$(DIS_SRC)/IRM_GX/drv/include         \
+				-I$(DIS_SRC)/IRM_GX/drv/src/LINUX       \
+				-I$(DIS_SRC)/IRM_GX/drv/src/LINUX/os	\
+				-I$(DIS_SRC)/include                   	\
+				-I$(DIS_SRC)/include/dis              	\
 
 

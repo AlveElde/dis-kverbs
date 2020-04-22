@@ -74,7 +74,7 @@ int dis_wq_post_rqe_cqe(struct dis_wq *wq,
 
 enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wq *wq, struct dis_wqe *wqe)
 {
-    int ret, bytes_left, bytes_total;
+    int ret, bytes_left, bytes_total, fail_counter = 0;
     pr_devel(DIS_STATUS_START);
 
     bytes_total = wqe->byte_len;
@@ -92,7 +92,13 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wq *wq, struct dis_wqe *wqe)
             }
             pr_devel("Partial receive!");
         }
-        wqe->byte_len = bytes_total; //TODO: Change this to bytes_left?
+        wqe->byte_len = bytes_left;
+        
+        if(fail_counter > 1000) {
+            udelay(1);
+        } else {
+            fail_counter++;
+        }
     }
 
     dis_wq_post_rqe_cqe(wq, wqe, IB_WC_RESP_TIMEOUT_ERR);
@@ -103,7 +109,7 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wq *wq, struct dis_wqe *wqe)
 
 enum ib_wc_status dis_wq_consume_one_sqe(struct dis_wq *wq, struct dis_wqe *wqe)
 {
-    int ret;
+    int ret, fail_counter = 0;
     pr_devel(DIS_STATUS_START);
 
     while (!kthread_should_stop()) {
@@ -112,6 +118,13 @@ enum ib_wc_status dis_wq_consume_one_sqe(struct dis_wq *wq, struct dis_wqe *wqe)
             pr_devel(DIS_STATUS_COMPLETE);
             dis_wq_post_sqe_cqe(wq, wqe, IB_WC_SUCCESS);
             return IB_WC_SUCCESS;
+        }
+
+        
+        if(fail_counter > 1000) {
+            udelay(1);
+        } else {
+            fail_counter++;
         }
     }
     
