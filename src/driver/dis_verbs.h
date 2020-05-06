@@ -17,8 +17,6 @@
 #define DIS_MR_MAX          100
 
 #define DIS_SGE_PER_WQE     4
-// #define DIS_PAGE_PER_SGE    100
-// #define DIS_PAGE_PER_WQE    DIS_SGE_PER_WQE * DIS_PAGE_PER_SGE
 #define DIS_MAX_IOVLEN      1024
 
 #define DIS_MSG_MAX         20
@@ -53,7 +51,7 @@ struct dis_mr {
     struct iovec    *pages;
     u64             mr_va;
     u64             mr_va_offset;
-    u64             mr_length; // Size
+    u64             mr_length;
     u32             page_count;
     u8              is_dma;
 };
@@ -155,7 +153,6 @@ struct dis_ucontext {
     struct dis_dev      *dev;
 };
 
-// Custom structure conversion inline functions.
 static inline struct dis_dev *to_dis_dev(struct ib_device *ibdev)
 {
     return ibdev ? container_of(ibdev, struct dis_dev, ibdev) : NULL;
@@ -270,13 +267,5 @@ int dis_post_srq_recv(struct ib_srq *ibsrq,
                         const struct ib_recv_wr *wr,
                         const struct ib_recv_wr **bad_wr);
 void dis_destroy_srq(struct ib_srq *ibsrq,  struct ib_udata *udata);
-
-
-// Address Handle verbs.
-// int dis_create_ah(struct ib_ah *ibah,
-//                             struct rdma_ah_attr *ah_attr,
-//                             u32 flags,
-//                             struct ib_udata *udata);
-// void dis_destroy_ah(struct ib_ah *ibah, u32 flags);
 
 #endif /* __DIS_VERBS_H__ */

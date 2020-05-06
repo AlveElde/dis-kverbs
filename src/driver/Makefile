@@ -23,16 +23,16 @@ EXTRA_CFLAGS += -D_DIS_KERNEL_ 			\
 				# -DDIS_USE_DMA			\
 				# -DDEBUG 				\
 
-EXTRA_CFLAGS += -I$(KVERBS_SRC)/common						\
-				-I$(OPT_DIS_SRC)/include						\
-				-I$(OPT_DIS_SRC)/include/dis					\
-				-I$(OPT_DIS_SRC)/include/os						\
-				-I$(SCILIB_SRC)/.								\
-				-I$(SCILIB_SRC)/GENIF							\
-				-I$(SCILIB_SRC)/GENIF/LINUX					\
-				-I$(SCILIB_SRC)/GENIF/LINUX/os					\
-				-I$(SCILIB_SRC)/SISCI							\
-				-I$(OSIF)/.               			\
+EXTRA_CFLAGS += -I$(KVERBS_SRC)/common					\
+				-I$(OPT_DIS_SRC)/include				\
+				-I$(OPT_DIS_SRC)/include/dis			\
+				-I$(OPT_DIS_SRC)/include/os				\
+				-I$(SCILIB_SRC)/.						\
+				-I$(SCILIB_SRC)/GENIF					\
+				-I$(SCILIB_SRC)/GENIF/LINUX				\
+				-I$(SCILIB_SRC)/GENIF/LINUX/os			\
+				-I$(SCILIB_SRC)/SISCI					\
+				-I$(OSIF)/.               				\
 				-I$(OSIF)/include       				\
 				-I$(OSIF)/include/LINUX 				\
 				-I$(DIS_SRC)/IRM_GX/drv/src             \

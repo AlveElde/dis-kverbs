@@ -9,19 +9,14 @@
 int dis_alloc_ucontext(struct ib_ucontext *ibucontext, 
                                 struct ib_udata *udata)
 {
-	// struct dis_ucontext *ucontext = to_dis_ucontext(ibucontext);
-	// struct dis_dev *dev = to_dis_dev(ibucontext->device);
     pr_devel(DIS_STATUS_START);
-
     pr_devel(DIS_STATUS_COMPLETE);
 	return 0;
 }
 
 void dis_dealloc_ucontext(struct ib_ucontext *ibucontext)
 {
-	// struct dis_ucontext *ucontext = to_dis_ucontext(ibucontext);
     pr_devel(DIS_STATUS_START);
-
     pr_devel(DIS_STATUS_COMPLETE);
 }
 
@@ -88,12 +83,6 @@ int dis_get_port_immutable(struct ib_device *ibdev, u8 port_num,
                             struct ib_port_immutable *immutable)
 {
     pr_devel(DIS_STATUS_START);
-    //int ret;
-    // struct ib_port_attr port_attr;
-    // ret = dis_query_port(ibdev, port_num, &port_attr);
-    // if(ret) {
-    //     return -42;
-    // }
     
     // TODO: Replace hard-coded values with result from dis_query_port
     immutable->pkey_tbl_len     = 1;
@@ -115,7 +104,8 @@ int dis_query_pkey(struct ib_device *ibdev, u8 port, u16 index,
                     u16 *pkey)
 {
     pr_devel(DIS_STATUS_START);
-
+    
+    // Random value
     *pkey = 0xffff;
     
     pr_devel(DIS_STATUS_COMPLETE);
@@ -140,7 +130,7 @@ int dis_alloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
 void dis_dealloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
 {
     pr_devel(DIS_STATUS_START);
-    // Nothing to do.
+    // Nothing to do currently.
     pr_devel(DIS_STATUS_COMPLETE);
 }
 
@@ -218,7 +208,7 @@ struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd,
         goto page_iov_alloc_err;
     }
 
-    /* Store the physical address of the start of each pinned page */
+    /* Store the base physical address of each pinned page */
     page = mr->pages;
     for_each_sg_page (mr->ibumem->sg_head.sgl, &sg, mr->ibumem->nmap, 0) {
         page->iov_base = (void*)page_address(sg_page_iter_page(&sg));
@@ -230,7 +220,7 @@ struct ib_mr *dis_reg_user_mr(struct ib_pd *ibpd,
         page++;
     }
 
-    /* Store the virtual address start, length, and offset */
+    /* Store the MR base virtual address, length, and offset */
     mr->mr_va = va;
     mr->mr_length = length;
     mr->mr_va_offset = ib_umem_offset(mr->ibumem);
@@ -303,7 +293,6 @@ int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc)
     struct dis_cq *cq = to_dis_cq(ibcq);
     struct dis_cqe* cqe;
     struct ib_wc *ibwc_iter;
-    // pr_devel(DIS_STATUS_START);
 
     /* Consume num_wc CQEs from the CQ */
     ibwc_iter = ibwc;
@@ -329,14 +318,13 @@ int dis_poll_cq(struct ib_cq *ibcq, int num_wc, struct ib_wc *ibwc)
         wc_count++;
     }
     
-    // pr_devel(DIS_STATUS_COMPLETE);
     return wc_count;
 }
 
 int dis_req_notify_cq(struct ib_cq *ibcq, enum ib_cq_notify_flags flags)
 {
     pr_devel(DIS_STATUS_START);
-
+    //TODO: Implement function.
     pr_devel(DIS_STATUS_FAIL);
     return -42;
 }
@@ -475,6 +463,7 @@ int dis_modify_qp(struct ib_qp *ibqp,
             /* Transition QP state to RTR */
             pr_devel("Modify QP state: RTR");
             if (attr_mask & IB_QP_DEST_QPN) {
+                //TODO: Verify the sci_if module parameter works, using l_qpn for now
                 // qp->r_qpn    = attr->dest_qp_num;
                 qp->r_qpn       = qp->l_qpn;
     
@@ -506,6 +495,7 @@ int dis_modify_qp(struct ib_qp *ibqp,
         case IB_QPS_RTS:
             /* Transition QP state to RTS */
             pr_devel("Modify QP state: RTS");
+            // QP is currently ready in RTR
             break;
 
         default:
@@ -547,8 +537,7 @@ int dis_post_send(struct ib_qp *ibqp,
     /* Post all send requests and notify SQ worker thread */
     send_wr_iter = send_wr;
     while (send_wr_iter) {
-        ret = dis_qp_post_one_sqe(&qp->sq,
-                                    send_wr_iter);
+        ret = dis_qp_post_one_sqe(&qp->sq, send_wr_iter);
         if (ret) {
             pr_devel(DIS_STATUS_FAIL);
             return -42;
@@ -557,7 +546,7 @@ int dis_post_send(struct ib_qp *ibqp,
         dis_qp_notify(&qp->sq);
         send_wr_iter = send_wr_iter->next;
     }
-    
+
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
 }
@@ -574,8 +563,7 @@ int dis_post_recv(struct ib_qp *ibqp,
     /* Post all receive requests and notify RQ worker thread */
     recv_wr_iter = recv_wr;
     while (recv_wr_iter) {
-        ret = dis_qp_post_one_rqe(&qp->rq,
-                                    recv_wr_iter);
+        ret = dis_qp_post_one_rqe(&qp->rq, recv_wr_iter);
         if (ret) {
             pr_devel(DIS_STATUS_FAIL);
             return -42;
@@ -600,10 +588,9 @@ int dis_create_srq(struct ib_srq *ibsrq,
     srq->srq_type   = init_attr->srq_type;
     srq->srq_limit  = attr->srq_limit;
 
-    // qp->rq.cq           = to_dis_cq(init_attr->recv_cq);
-    srq->rq.sge_max     = attr->max_sge;
-    srq->rq.wqe_max     = roundup_pow_of_two(attr->max_wr);
-    srq->rq.wqe_circ.buf   = kzalloc(sizeof(struct dis_wqe) * srq->rq.wqe_max, GFP_KERNEL);
+    srq->rq.sge_max = attr->max_sge;
+    srq->rq.wqe_max = roundup_pow_of_two(attr->max_wr);
+    srq->rq.wqe_circ.buf = kzalloc(sizeof(struct dis_wqe) * srq->rq.wqe_max, GFP_KERNEL);
     if (!srq->rq.wqe_circ.buf) {
         pr_devel(DIS_STATUS_FAIL);
        return -42;

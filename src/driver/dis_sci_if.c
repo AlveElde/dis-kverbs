@@ -37,7 +37,6 @@ int dis_sci_if_create_msq(struct dis_wq *wq)
 #ifdef DIS_USE_DMA
     dis_nodeId_list_t remote_node_ids;
     sci_msq_attr_t attr;
-    // pr_devel(DIS_STATUS_START);
 #endif
     l_msq_id = wq->l_qpn;
     r_msq_id = use_l_qpn ?  wq->l_qpn :  wq->r_qpn;
@@ -45,9 +44,6 @@ int dis_sci_if_create_msq(struct dis_wq *wq)
     l_msq_id = is_initiator ? l_msq_id * 2 : (l_msq_id * 2) + 1;
     r_msq_id = is_initiator ? r_msq_id * 2 : (r_msq_id * 2) + 1;
 
-    // pr_devel("Targeting remote_node_id %d", remote_node_id);
-    // pr_devel("Creating MSQ with l_msq_id: %d, r_msq_id: %d, wqe_max: %d, mtu: %d", 
-    //             l_msq_id, r_msq_id, DIS_MSG_MAX, DIS_MSG_SIZE_MAX);
 
 #ifdef DIS_USE_DMA
     remote_node_ids[0] = remote_node_id;
@@ -109,17 +105,12 @@ int dis_sci_if_connect_msq(struct dis_wq *wq)
     dis_nodeId_list_t remote_node_ids;
     sci_msq_attr_t attr;
 #endif
-    // pr_devel(DIS_STATUS_START);
 
     l_msq_id = wq->l_qpn;
     r_msq_id = use_l_qpn ?  wq->l_qpn :  wq->r_qpn;
 
     l_msq_id = is_initiator ? (l_msq_id * 2) + 1 : l_msq_id * 2;
     r_msq_id = is_initiator ? (r_msq_id * 2) + 1 : r_msq_id * 2;
-
-    // pr_devel("Targeting remote_node_id %d", remote_node_id);
-    // pr_devel("Connecting MSQ with l_msq_id: %d, r_msq_id: %d, wqe_max: %d, mtu: %d", 
-    //             l_msq_id, r_msq_id, DIS_MSG_MAX, DIS_MSG_SIZE_MAX);
 
 #ifdef DIS_USE_DMA
     remote_node_ids[0] = remote_node_id;
@@ -178,7 +169,6 @@ int dis_sci_if_send_v_msg(struct dis_wqe *wqe)
 {
     int free;
     sci_error_t err;
-    // pr_devel(DIS_STATUS_START);
 
 #ifdef DIS_USE_DMA
     err = SCILSendVMsgDma(*(wqe->sci_msq),
@@ -226,7 +216,6 @@ int dis_sci_if_receive_v_msg(struct dis_wqe *wqe)
 {
     int free;
     sci_error_t err;
-    // pr_devel(DIS_STATUS_START);
 
     err = SCILReceiveVMsg(*(wqe->sci_msq),
                         &wqe->sci_msg,
@@ -248,7 +237,7 @@ int dis_sci_if_receive_v_msg(struct dis_wqe *wqe)
         // pr_devel("SCI_ERR_NOT_CONNECTED: " DIS_STATUS_FAIL);
         return -42;
     case SCI_ERR_ILLEGAL_PARAMETER:
-        pr_devel("SCI_ERR_ILLEGAL_PARAMETER: " DIS_STATUS_FAIL);
+        // pr_devel("SCI_ERR_ILLEGAL_PARAMETER: " DIS_STATUS_FAIL);
         return -42;
     case SCI_ERR_OUT_OF_RANGE:
         // pr_devel("SCI_ERR_OUT_OF_RANGE: " DIS_STATUS_FAIL);

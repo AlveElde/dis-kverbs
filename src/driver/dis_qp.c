@@ -4,6 +4,7 @@
 #include "dis_qp.h"
 #include "dis_sci_if.h"
 
+//TODO: Separated for FTrace, combine with dis_wq_post_rqe_cqe
 int dis_wq_post_sqe_cqe(struct dis_wq *wq, 
                     struct dis_wqe *wqe,
                     enum ib_wc_status wq_status) 
@@ -94,6 +95,7 @@ enum ib_wc_status dis_wq_consume_one_rqe(struct dis_wq *wq, struct dis_wqe *wqe)
         }
         wqe->byte_len = bytes_left;
         
+        //TODO: Replace sleep by returning when connection is broken
         if(fail_counter > 1000) {
             udelay(1);
         } else {
@@ -119,8 +121,8 @@ enum ib_wc_status dis_wq_consume_one_sqe(struct dis_wq *wq, struct dis_wqe *wqe)
             dis_wq_post_sqe_cqe(wq, wqe, IB_WC_SUCCESS);
             return IB_WC_SUCCESS;
         }
-
         
+        //TODO: Replace sleep by returning when connection is broken
         if(fail_counter > 1000) {
             udelay(1);
         } else {
@@ -164,7 +166,9 @@ int dis_wq_consume_all(struct dis_wq *wq)
             return -42;
         }
 
+        //TODO: Reintroduce:
         // dis_wq_post_cqe(wq, wqe, wc_status);
+
         if (wqe->page_map_dynamic) {
             kfree(wqe->page_map_dynamic);
         }
@@ -324,7 +328,7 @@ int dis_qp_post_one_sqe(struct dis_wq *wq,
     }
     wqe = (struct dis_wqe*)&wq->wqe_circ.buf[head * sizeof(struct dis_wqe)];
 
-    /* Set SQE attributes */
+    /* Set WQE attributes */
     wqe->opcode         = IB_WC_SEND;
     wqe->sci_msq        = &wq->sci_msq;
     wqe->byte_len       = 0;
@@ -332,7 +336,7 @@ int dis_qp_post_one_sqe(struct dis_wq *wq,
     wqe->wr_id          = wr->wr_id;
     wqe->sci_msg.iovlen = 0;
 
-    /* Map each segment(SGE) into physical pages from the MR */
+    /* Calculate the number of pages spanned by each segment */
     for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
         ibsge = &wr->sg_list[i];
         sge = &sge_map[i];
@@ -384,16 +388,16 @@ int dis_qp_post_one_sqe(struct dis_wq *wq,
         wqe->sci_msg.iov = wqe->page_map_dynamic;
     }
     
-    /* Fill WQE iovec page map with MR iovecs, and offset pages on SGE bounds */
+    /* Map each segment into physical pages from the MR */
     sge_page = wqe->sci_msg.iov;
     for (i = 0; i < min(wr->num_sge, DIS_SGE_PER_WQE); i++) {
         sge = &sge_map[i];
-        mr_page = sge->mr_pages;
         
         if (sge->is_dma) {
             continue;
         }
 
+        mr_page = sge->mr_pages;
         while (sge->sge_len > 0) {
             sge_chunk = min(sge->sge_len, PAGE_SIZE - sge->base_offset);
             sge_page->iov_base  = mr_page->iov_base + sge->base_offset;
@@ -533,7 +537,6 @@ int dis_qp_notify(struct dis_wq *wq)
 
     wq->wq_flag = DIS_WQ_POST;
     wake_up(&wq->wait_queue);
-    //TODO: Should we yield here?
 
     pr_devel(DIS_STATUS_COMPLETE);
     return 0;
